@@ -12,7 +12,7 @@ OASISFormat: 0.4
 BuildTools: ocamlbuild
 Plugins: DevFiles (0.4), META (0.4)
 AlphaFeatures: ocamlbuild_more_args
-XOCamlbuildExtraArgs: -use-menhir -use-ocamlfind
+XOCamlbuildExtraArgs: -use-ocamlfind
 BuildDepends: threads
 
 # The following allows individual developers to customize their environments
@@ -40,8 +40,7 @@ Library "pds-programming"
     jhupllib,
     pds-reachability,
     ppx_tools,
-    ppx_tools.metaquot,
-    utils
+    ppx_tools.metaquot
 
 Executable "ppx_pds_programming"
   Path: src/ppx-pds-programming
@@ -52,7 +51,6 @@ Executable "ppx_pds_programming"
     compiler-libs.common,
     ppx_tools,
     ppx_tools.metaquot,
-    utils,
     pds-programming
 
 Executable "test"
@@ -67,7 +65,6 @@ Executable "test"
     ppx_deriving.std,
     ppx_tools,
     ppx_tools.metaquot,
-    utils,
     pds-programming
 
 Test test

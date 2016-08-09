@@ -1,15 +1,12 @@
 open Batteries;;
+open Jhupllib;;
+
 open OUnit2
 
 let all_tests =
-  [ Test_files.tests
-  ; Test_utils.tests
-  ; Test_reachability.tests
-  ; Test_pds_programming.tests
-  ; Test_swan.tests
+  [ Test_pds_programming.tests
   ; Test_ocaml_ast_utils.tests
   ; Test_continuation_transform.tests
-  ; Test_a_translate.tests
   ];;
 
 let () =
