@@ -1,4 +1,4 @@
-PKG oasis batteries oUnit ppx_deriving.std monadlib ocaml-monadic compiler-libs.common ppx_tools ppx_tools.metaquot ppx_import
+PKG oasis batteries jhupllib oUnit ppx_deriving.std monadlib ocaml-monadic compiler-libs.common ppx_tools ppx_tools.metaquot ppx_import
 S src/**
 S test/**
 B _build/src/**
