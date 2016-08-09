@@ -1,5 +1,6 @@
 Name: pds-programming
 Version: 0.1
+OCamlVersion: >= 4.01
 Synopsis: A metaprogramming library for specifying abstract push-down systems.
 Authors: JHU PL Lab <pl.cs@jhu.edu>
 License: Apache
@@ -14,6 +15,9 @@ Plugins: DevFiles (0.4), META (0.4)
 AlphaFeatures: ocamlbuild_more_args
 XOCamlbuildExtraArgs: -use-ocamlfind
 BuildDepends: threads
+
+# The following ensures that ppx_import is executed before ppx_deriving.std.
+XOCamlbuildPluginTags: package(ppx_import), package(ppx_deriving.std)
 
 # The following allows individual developers to customize their environments
 # (e.g. reposition the _build directory via a symlink) on build.
@@ -30,8 +34,9 @@ Library "pds-programming"
   Path: src/pds-programming
   Modules:
     Continuation_transform,
-    Ocaml_ast_utils,
     Ocaml_a_translator,
+    Ocaml_ast_utils,
+    Ocaml_ast_without_location,
     Pds_programming,
     Ppx_utils
   BuildDepends:
@@ -39,8 +44,10 @@ Library "pds-programming"
     compiler-libs.common,
     jhupllib,
     pds-reachability,
+    ppx_deriving.std,
+    ppx_import,
     ppx_tools,
-    ppx_tools.metaquot
+    ppx_tools.metaquot,
 
 Executable "ppx_pds_programming"
   Path: src/ppx-pds-programming

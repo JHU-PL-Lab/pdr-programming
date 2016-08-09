@@ -183,9 +183,7 @@ let rec continuation_transform
                     h_type = Goto_handler} in
     let new_hgroup = Some {back = new_back; others = new_others} in
     let all_gotos_exp =
-      List.map (fun s -> {pexp_desc = Pexp_ident (locwrap s);
-                          pexp_loc = !default_loc;
-                          pexp_attributes = []}) all_gotos in
+      List.map (fun s -> constructor_exp s None) all_gotos in
     let case_tuples = List.combine p_list all_gotos_exp in
     let case_maker (casepat, caseexp) =
       {pc_lhs = casepat; pc_guard = None; pc_rhs = caseexp} in
