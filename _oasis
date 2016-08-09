@@ -1,0 +1,74 @@
+Name: pds-programming
+Version: 0.1
+Synopsis: A metaprogramming library for specifying abstract push-down systems.
+Authors: JHU PL Lab <pl.cs@jhu.edu>
+License: Apache
+
+Maintainers: JHU PL Lab <pl.cs@jhu.edu>
+Description: A library which provides metaprogramming tools for the specification of abstract push-down systems.  In particular, this library generates client code for the pds-reachability library.
+Homepage: https://github.com/JHU-PL-Lab/pds-programming
+
+OASISFormat: 0.4
+BuildTools: ocamlbuild
+Plugins: DevFiles (0.4), META (0.4)
+AlphaFeatures: ocamlbuild_more_args
+XOCamlbuildExtraArgs: -use-menhir -use-ocamlfind
+BuildDepends: threads
+
+# The following allows individual developers to customize their environments
+# (e.g. reposition the _build directory via a symlink) on build.
+PreBuildCommand: ./.execute_if_exists ./.local_prebuild
+PreCleanCommand: ./.execute_if_exists ./.local_preclean
+
+SourceRepository head
+  Type: git
+  Location: https://github.com/JHU-PL-Lab/pds-programming.git
+  Browser: https://github.com/JHU-PL-Lab/pds-programming
+  Branch: master
+
+Library "pds-programming"
+  Path: src/pds-programming
+  Modules:
+    Continuation_transform,
+    Ocaml_ast_utils,
+    Ocaml_a_translator,
+    Pds_programming,
+    Ppx_utils
+  BuildDepends:
+    batteries,
+    compiler-libs.common,
+    jhupllib,
+    pds-reachability,
+    ppx_tools,
+    ppx_tools.metaquot,
+    utils
+
+Executable "ppx_pds_programming"
+  Path: src/ppx-pds-programming
+  MainIs: ppx_pds_programming.ml
+  CompiledObject: native
+  BuildDepends:
+    batteries,
+    compiler-libs.common,
+    ppx_tools,
+    ppx_tools.metaquot,
+    utils,
+    pds-programming
+
+Executable "test"
+  Path: test/
+  MainIs: test.ml
+  CompiledObject: native
+  ByteOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
+  NativeOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
+  BuildDepends:
+    batteries,
+    oUnit,
+    ppx_deriving.std,
+    ppx_tools,
+    ppx_tools.metaquot,
+    utils,
+    pds-programming
+
+Test test
+  Command: $test
