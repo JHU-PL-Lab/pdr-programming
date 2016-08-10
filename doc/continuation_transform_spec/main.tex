@@ -1,0 +1,208 @@
+\documentclass{article}
+
+\usepackage{listings}
+\usepackage{longtable}
+\lstset{
+    language=caml,
+    basicstyle=\ttfamily,
+    showspaces=false,
+    showtabs=false,
+    mathescape=true,
+    literate=%
+        {\%}{\begingroup\texttt{\char`\%}\endgroup}{1}%
+}
+
+%%%% Make listings spacing less wasteful
+\makeatletter
+\lst@Key{basewidth}{0.5em,0.35em}{\lstKV@CSTwoArg{#1}% was 0.6 and 0.45em resp - SS
+    {\def\lst@widthfixed{##1}\def\lst@widthflexible{##2}%
+     \ifx\lst@widthflexible\@empty
+         \let\lst@widthflexible\lst@widthfixed
+     \fi
+     \def\lst@temp{\PackageError{Listings}%
+                                {Negative value(s) treated as zero}%
+                                \@ehc}%
+     \let\lst@error\@empty
+     \ifdim \lst@widthfixed<\z@
+         \let\lst@error\lst@temp \let\lst@widthfixed\z@
+     \fi
+     \ifdim \lst@widthflexible<\z@
+         \let\lst@error\lst@temp \let\lst@widthflexible\z@
+     \fi
+     \lst@error}}
+\makeatother
+\def\ocil{\csname lstinline\endcsname}
+
+\def\splat{\bullet}
+\newcommand{\ruletitle}[1]{\textsc{#1}\\}
+
+\setlength{\parskip}{1em}
+\setlength{\parindent}{0em}
+\delimitershortfall=-1pt
+
+\newcommand{\var}{x}
+\newcommand{\contpart}{k}
+\newcommand{\contgoto}{g}
+\newcommand{\hg}{h}
+\newcommand{\hset}{S}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newenvironment{tcases}%
+    {%
+        \begingroup%
+        \newcommand{\when}[1][when ]{\\\qquad\textnormal{##1}}%
+        \newcommand{\wand}{\when[ and ]}
+        \renewcommand{\arraystretch}{1.5}%
+        \left\{%
+        \begin{array}{l}%
+    }{%
+        \end{array}%
+        \right.%
+        \endgroup%
+    }
+
+\begin{document}
+    This document specifies the transformation of OCaml expressions into continuations based upon a blocking operation called \ocil![%pop]!.
+
+    \ruletitle{Constant}
+    $
+        T\left(c\right)
+        =
+        \left(\splat, c\right)
+    $
+    for constant expression $c$
+
+    \ruletitle{Variable}
+    $
+        T\left(\code{%
+            x%
+        }\right)
+        =
+        \left(\splat, \texttt{\ocil!x!}\right)
+    $
+
+    \ruletitle{Pop}
+    $
+        T\left(\code{%
+            [\char`\%pop]%
+        }\right)
+        =
+        \left(
+            \left(
+                \left(
+                    \contpart,
+                    \var
+                \right),
+                \emptyset
+            \right),
+            \contpart
+        \right)
+    $ for fresh continuation $\contpart$ and fresh variable $\var$.
+
+    \ruletitle{Let}
+    $
+        T\left(\code{%
+            let $p$ = $e_1$ in $e_2$%
+        }\right)
+        =
+        \begin{tcases}
+            \left(
+                \hg_2,
+                \code{let $p$ = $e_1'$ in $e_2'$}
+            \right)
+            \when \hg_1 = \splat
+        \\
+            \left(
+                \left(
+                    \left(
+                        p_1'',
+                        \code{let $p$ = $e_1''$ in $e_2'$}
+                    \right),
+                    \hset_1
+                \right)
+                e_1'
+            \right)
+            \when \hg_1 = \left(\left(p_1'', e_1''\right), \hset_1\right)
+            \wand \hg_2 = \splat
+        \\
+            \left(
+                \left(
+                    \left(
+                        p_2'',
+                        e_2''
+                    \right),
+                    \hset_1 \cup \hset_2 \cup
+                        \left\{
+                            \left(
+                                p_1'',
+                                \code{let $p$ = $e_1''$ in $e_2'$}
+                            \right)
+                        \right\}
+                \right),
+                e_1'
+            \right)
+            \when \hg_1 = \left(\left(p_1'', e_1''\right), \hset_1\right)
+            \wand \hg_2 = \left(\left(p_2'', e_2''\right), \hset_2\right)
+        \end{tcases}
+    $ for $T(e_1) = (\hg_1, e_1')$ and $T(e_2) = (\hg_2, e_2')$
+
+    \ruletitle{Match}
+    $
+        T\left(
+            \parbox{25mm}{%
+                \code{%
+                    match $e_0$ with \\
+                    | $p_1$ -> $e_1$ \\
+                    \hspace*{10mm}$\vdots$ \\
+                    | $p_n$ -> $e_n$
+                }%
+            }
+        \right)
+        =
+        \left(
+            \left(
+                \left(
+                    \contgoto_0\ \var_0,
+                    \var_0
+                \right),
+                \hset' \cup \hset''
+            \right),
+            \parbox{25mm}{%
+                \code{%
+                    match $e_0$ with \\
+                    | $p_1$ -> $\contgoto_1$ \\
+                    \hspace*{10mm}$\vdots$ \\
+                    | $p_n$ -> $\contgoto_n$
+                }%
+            }
+        \right)
+    $
+    \\ where
+    $\hset' = \bigcup
+        \left\{
+            \hset_i \cup \left\{
+                \left(
+                    \contgoto_i,
+                    e_i'
+                \right),
+                \left(
+                    p_i'',
+                    \contgoto_0\ e_i''
+                \right)
+            \right\}
+            \middle|
+            \hg_i = (p_i'', e_i'')
+        \right\}
+    $
+    \\ and
+    $\hset'' =
+        \left\{
+            \left(
+                \contgoto_i,
+                \contgoto_0\ e_i''
+            \right)
+        \middle|
+        \hg_i = \splat
+        \right\}
+    $
+\end{document}
