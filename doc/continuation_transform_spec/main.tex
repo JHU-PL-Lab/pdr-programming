@@ -41,17 +41,27 @@
 \delimitershortfall=-1pt
 
 \newcommand{\var}{x}
-\newcommand{\contpart}{k}
-\newcommand{\contgoto}{g}
+\newcommand{\contpart}{C}
+\newcommand{\contgoto}{G}
 \newcommand{\hg}{h}
 \newcommand{\hset}{S}
 
 \newcommand{\code}[1]{\texttt{#1}}
+\newenvironment{codebox}[1][@{}l@{}]{%
+    \hbox\bgroup%
+    \ttfamily%
+    \renewcommand{\arraystretch}{1.0}%
+    \begin{tabular}{#1}%
+}{%
+    \end{tabular}%
+    \egroup%
+}
 \newenvironment{tcases}%
     {%
         \begingroup%
         \newcommand{\when}[1][when ]{\\\qquad\textnormal{##1}}%
-        \newcommand{\wand}{\when[ and ]}
+        \newcommand{\andc}{\textnormal{ and }}
+        \newcommand{\andl}{\when[ and ]}
         \renewcommand{\arraystretch}{1.5}%
         \left\{%
         \begin{array}{l}%
@@ -123,7 +133,7 @@
                 e_1'
             \right)
             \when \hg_1 = \left(\left(p_1'', e_1''\right), \hset_1\right)
-            \wand \hg_2 = \splat
+            \andl \hg_2 = \splat
         \\
             \left(
                 \left(
@@ -142,21 +152,111 @@
                 e_1'
             \right)
             \when \hg_1 = \left(\left(p_1'', e_1''\right), \hset_1\right)
-            \wand \hg_2 = \left(\left(p_2'', e_2''\right), \hset_2\right)
+            \andc \hg_2 = \left(\left(p_2'', e_2''\right), \hset_2\right)
         \end{tcases}
     $ for $T(e_1) = (\hg_1, e_1')$ and $T(e_2) = (\hg_2, e_2')$
+
+    \ruletitle{If}
+    $
+        T\left(
+            \begin{codebox}
+                if $e_1$ then $e_2$ \\
+                \phantom{if $e_1$ }else $e_3$
+            \end{codebox}
+        \right)
+        =
+        \begin{tcases}
+            \left(
+                \emptyset,
+                \code{if $e_1$ then $e_2'$ else $e_3'$}
+            \right)
+            \when \hg_2 = \hg_3 = \splat
+        \\
+            \left(
+                \hset_2 \cup
+                    \left\{
+                        \left(
+                            \contgoto_2,
+                            e_2'
+                        \right),
+                        \left(
+                            p_2'',
+                            \contgoto_4\ e_2''
+                        \right),
+                        \left(
+                            \contgoto_3,
+                            \contgoto_4\ e_3'
+                        \right)
+                    \right\},
+                \begin{codebox}
+                    if $e_1$ then $\contgoto_2$ \\
+                    \phantom{if $e_1$ }else $\contgoto_3$
+                \end{codebox}
+            \right)
+            \when \hg_2 = \left(\left(p_2'',e_2''\right),\hset_2\right) \textnormal{ and } \hg_3 = \splat
+        \\
+            \left(
+                \hset_3 \cup
+                    \left\{
+                        \left(
+                            \contgoto_2,
+                            \contgoto_4\ e_2'
+                        \right),
+                        \left(
+                            \contgoto_3,
+                            e_3'
+                        \right),
+                        \left(
+                            p_3'',
+                            \contgoto_4\ e_3''
+                        \right)
+                    \right\},
+                \begin{codebox}
+                    if $e_1$ then $\contgoto_2$ \\
+                    \phantom{if $e_1$ }else $\contgoto_3$
+                \end{codebox}
+            \right)
+            \when \hg_2 = \splat \textnormal{ and } \hg_3 = \left(\left(p_3'',e_3''\right),\hset_3\right)
+        \\
+            \left(
+                \hset_2 \cup \hset_3 \cup
+                    \left\{
+                        \left(
+                            \contgoto_2,
+                            e_2'
+                        \right),
+                        \left(
+                            p_2'',
+                            \contgoto_4\ e_2''
+                        \right),
+                        \left(
+                            \contgoto_3,
+                            e_3'
+                        \right),
+                        \left(
+                            p_3'',
+                            \contgoto_4\ e_3''
+                        \right)
+                    \right\},
+                \begin{codebox}
+                    if $e_1$ then $\contgoto_2$ \\
+                    \phantom{if $e_1$ }else $\contgoto_3$
+                \end{codebox}
+            \right)
+            \when \hg_2 = \left(\left(p_2'',e_2''\right),\hset_2\right) \textnormal{ and } \hg_3 = \left(\left(p_3'',e_3''\right),\hset_3\right)
+        \end{tcases}
+    $
+    \\ where $T(e_2) = \left(\hg_2, e_2'\right)$ and $T(e_3) = \left(\hg_3, e_3'\right)$
 
     \ruletitle{Match}
     $
         T\left(
-            \parbox{25mm}{%
-                \code{%
-                    match $e_0$ with \\
-                    | $p_1$ -> $e_1$ \\
-                    \hspace*{10mm}$\vdots$ \\
-                    | $p_n$ -> $e_n$
-                }%
-            }
+            \begin{codebox}
+                match $e_0$ with \\
+                | $p_1$ -> $e_1$ \\
+                \hspace*{10mm}$\vdots$ \\
+                | $p_n$ -> $e_n$
+            \end{codebox}
         \right)
         =
         \left(
@@ -167,14 +267,12 @@
                 \right),
                 \hset' \cup \hset''
             \right),
-            \parbox{25mm}{%
-                \code{%
-                    match $e_0$ with \\
-                    | $p_1$ -> $\contgoto_1$ \\
-                    \hspace*{10mm}$\vdots$ \\
-                    | $p_n$ -> $\contgoto_n$
-                }%
-            }
+            \begin{codebox}
+                match $e_0$ with \\
+                | $p_1$ -> $\contgoto_1$ \\
+                \hspace*{10mm}$\vdots$ \\
+                | $p_n$ -> $\contgoto_n$
+            \end{codebox}
         \right)
     $
     \\ where
