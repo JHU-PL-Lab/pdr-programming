@@ -47,7 +47,7 @@ Library "pds-programming"
     ppx_deriving.std,
     ppx_import,
     ppx_tools,
-    ppx_tools.metaquot,
+    ppx_tools.metaquot
 
 Executable "ppx_pds_programming"
   Path: src/ppx-pds-programming
