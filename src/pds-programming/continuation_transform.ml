@@ -7,29 +7,43 @@ open Longident;;
 open Ast_helper;;
 open Ocaml_ast_utils;;
 
+(*The context type is used to make sure each Cont (continuation), Goto,
+  and variable created by the continuation transform function has a unique
+  name. When a new Cont, Goto, or variable is created, the int stored in
+  c_counter, g_counter, or v_counter, respectively, is used to create its
+  name. That counter is then updated.*)
+
+(*defines the context type*)
 type context =
   {mutable c_counter: int;
    mutable g_counter: int;
    mutable v_counter: int}
 
+(*initializes a context, with all counters starting at 0*)
 let new_context () =
   { c_counter = 0;
     g_counter = 0;
     v_counter = 0;  }
 ;;
 
+(*creates a new name of type Lident for a Cont and updates the corresponding
+  counter of the given context*)
 let new_cont_name (c : context) =
   let n = c.c_counter in
   c.c_counter <- c.c_counter + 1;
   Lident ("Part" ^ string_of_int n)
 ;;
 
+(*creates a new name of type Lident for a Goto and updates the corresponding
+  counter of the given context*)
 let new_goto_name (c : context) =
   let n = c.g_counter in
   c.g_counter <- c.g_counter + 1;
   Lident ("Goto" ^ string_of_int n)
 ;;
 
+(*creates a new name of type string for a variable and updates the
+  corresponding counter of the given context*)
 let new_var_name (c : context) =
   let n = c.v_counter in
   c.v_counter <- c.v_counter + 1;
