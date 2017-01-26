@@ -6,6 +6,7 @@ open Asttypes;;
 open Longident;;
 open Ast_helper;;
 
+(*TODO: what is this*)
 (* let pp_expression = Pprintast.expression;; *)
 let pp_expression = Ocaml_ast_without_location.pp_expression;;
 let equal_expression = Ocaml_ast_without_location.equal_expression;;
@@ -18,6 +19,7 @@ let compare_pattern = Ocaml_ast_without_location.compare_pattern;;
 
 exception Unflattened_extension;;
 
+(*TODO: I know what locwrap is but what are we doing here/do I need to know? *)
 let locwrap (type a) (x : a) : a Asttypes.loc =
   {txt = x;
    loc = !default_loc}
@@ -35,13 +37,15 @@ module String_set =
 let show_stringset s =
   Pp_utils.pp_to_string (Pp_utils.pp_set Format.pp_print_string String_set.enum) s;;
 
+(*retrieves all of the variables in a given pattern, p, and returns their
+  names as a string set. For use in freevars.*)
 let rec varmatch p =
   let {ppat_desc; _ } = p in
   match ppat_desc with
   | Ppat_any -> String_set.empty
   | Ppat_var s -> String_set.singleton s.txt
   | Ppat_alias (pat, s) -> String_set.union (varmatch pat) (String_set.singleton s.txt)
-  | Ppat_constant _ -> String_set.empty (*what is 1L 1n etc in notes re: patterns*)
+  | Ppat_constant _ -> String_set.empty
   | Ppat_interval _ -> String_set.empty
   | Ppat_tuple l -> let mapped_l = List.map varmatch l in
     List.fold_left String_set.union String_set.empty mapped_l
@@ -61,21 +65,26 @@ let rec varmatch p =
     in List.fold_left String_set.union String_set.empty mapped_l
   | Ppat_array l -> let mapped_l = List.map varmatch l in
     List.fold_left String_set.union String_set.empty mapped_l
-  | Ppat_or (p1, p2) -> String_set.inter (varmatch p1) (varmatch p2)
+  | Ppat_or (p1, p2) -> String_set.inter (varmatch p1) (varmatch p2) (*TODO: what is this*)
   | Ppat_constraint (p1, _) -> varmatch p1
   | Ppat_type _ -> String_set.empty
   | Ppat_lazy p1 -> varmatch p1
   | Ppat_unpack _ -> raise (Utils.Not_yet_implemented "varmatch Ppat_unpack")
   | Ppat_exception pat -> varmatch pat
-  | Ppat_extension _ -> raise Unflattened_extension;;
+  | Ppat_extension _ -> raise Unflattened_extension;; (*TODO: how does this work?*)
 
+(*determines free variables in a given expression. takes bound, a string set of
+  variables that are already bound, and expr, an expression. returns a string
+  set of names of bound variables. Uses varmatch. For use in A-translator.*)
 let rec freevars bound expr =
   let {pexp_desc; _} = expr in
   match pexp_desc with
+  (*expression is a variable*)
   | Pexp_ident s -> begin
       match s.txt with
       | Lident l -> if String_set.mem l bound
-        then
+        then (*if variable is already in set of bound variables, there are
+             no unbound variables in this expression.*)
           String_set.empty
         else
           String_set.singleton l
@@ -83,6 +92,7 @@ let rec freevars bound expr =
       | Lapply _ -> raise (Utils.Not_yet_implemented "freevars Pexp_ident (Longident of Lapply)")
     end
   | Pexp_constant _ -> String_set.empty
+  (*expression is a let expression; TODO: come back to this.*)
   | Pexp_let (rflag, vb_list, e) ->
     let getvbvars vb = varmatch vb.pvb_pat
     in let vbvarlist = List.map getvbvars vb_list

@@ -27,7 +27,7 @@ let new_context () =
 ;;
 
 (*creates a new name of type Lident for a Cont and updates the corresponding
-  counter of the given context*)
+  counter of the given context. The name is of the form Part<int>.*)
 let new_cont_name (c : context) =
   let n = c.c_counter in
   c.c_counter <- c.c_counter + 1;
@@ -35,7 +35,7 @@ let new_cont_name (c : context) =
 ;;
 
 (*creates a new name of type Lident for a Goto and updates the corresponding
-  counter of the given context*)
+  counter of the given context. The name is of the form Goto<int>.*)
 let new_goto_name (c : context) =
   let n = c.g_counter in
   c.g_counter <- c.g_counter + 1;
@@ -50,12 +50,21 @@ let new_var_name (c : context) =
   "__varct__" ^ string_of_int n
 ;;
 
+(*Handlers link code using Conts and Gotos. Each handler has the name of the
+  Cont or Goto, stored as a pattern, the expression this Cont or Goto "leads"
+  to, and a handlertype, which indicates whether the handler is a Cont or a
+  Goto. *)
+
+(*The handlertype type is used to indicate whether a handler is a Cont or a
+  Goto. *)
 type handlertype =
   | Cont_handler
   | Goto_handler
   [@@deriving eq, ord, show]
 ;;
 
+(*The handler type contains the three parts of a handler: its name, the
+  expression it is linked to, and its type (as indicated by a handlertype). *)
 type handler =
   { h_pat : pattern;
     h_exp : expression;
@@ -64,6 +73,8 @@ type handler =
   [@@deriving eq, ord, show]
 ;;
 
+(*Specifies a way to compare handlers for use in handler_group, which has a set
+  of handlers as one of its fields TODO: is this right? *)
 module Handler_ord =
 struct
   type t = handler
@@ -73,6 +84,12 @@ end;;
 module Handler_set =
   Set.Make (Handler_ord);;
 
+(*A handler group is a collection of all of the pieces of code that are linked
+  together by handlers. Each handler in others links to one or more handlers;
+  at least one links to back, which is the final handler. The handler at back
+  can be moved to others if more handlers that execute after it are added.
+  There must always be a back; others can be an empty set.
+  TODO: is this simplifying things too much?*)
 type handler_group =
   { back : handler;
     others : Handler_set.t [@printer Pp_utils.pp_set pp_handler Handler_set.enum]
@@ -80,10 +97,15 @@ type handler_group =
   [@@deriving eq, show]
 ;;
 
+(*Continuation transform returns an expression, which is the starting point of
+  the code, and a handler_group option, which is all subsequent continuations
+  of the code. This will be None if and only if there are no continuations. *)
 type continuation_transform_result = handler_group option * expression
   [@@deriving eq, show]
 ;;
 
+(*Given a Longident.t, generates a constructor expression. Used when creating
+  continuations in continuation_transform. *)
 let constructor_exp (name : Longident.t) (inner : expression option) =
   {pexp_desc =
      Pexp_construct (locwrap name, inner);
@@ -91,31 +113,50 @@ let constructor_exp (name : Longident.t) (inner : expression option) =
    pexp_attributes = []}
 ;;
 
+(*Given a Longident.t, generates a constructor pattern. Used when creating
+  continuations in continuation_transform. *)
 let constructor_pat (name : Longident.t) (inner : pattern option) =
   {ppat_desc =
      Ppat_construct (locwrap name, inner);
    ppat_loc = !default_loc;
    ppat_attributes = []}
 ;;
-
+(*Given an expression and a context, the contintuation transform function
+  breaks the expression into pieces based on when a read is needed. Each piece
+  contained in a handler, of type either Cont_handler or Goto_handler. The
+  context c is used to name these handlers. The continuation transform function
+  returns a pair of a handler group option containing all Gotos and Conts, and
+  an expression acting as the "start" expression. *)
 let rec continuation_transform
     (e : expression)
     (context : context)
   : handler_group option * expression =
+(*Pattern-match the expression using its pexp_desc field, which is of type
+  expression_desc*)
   match e with
+(*expression is a variable; no continuations or recursive call needed*)
   | {pexp_desc = Pexp_ident _; _} -> (None, e)
+(*expression is a constant; no continuations or recursive call needed*)
   | {pexp_desc = Pexp_constant _; _} -> (None, e)
+(*expression uses result extension; expression within result extension not
+  evaluated, no continuations or recursive call needed*)
+(*TODO: do I call them extensions*)
   | [%expr [%result [%e? r] ]] -> (None, [%expr Result [%e r]])
+(*expression uses read extension; we need to create a new handler group and
+  add a new handler to it. This new handler is a Continuation, with new_token
+  (a variable name for the value read) as its expression. The name of the
+  new handler becomes the start expression.*)
   | [%expr [%read]] ->
     let cont_name = new_cont_name context in
     let cont_pdesc = Ppat_construct (locwrap cont_name, None) in
     let cont_pattern = {ppat_desc = cont_pdesc; ppat_loc = !default_loc; ppat_attributes = []} in
-    let next_token_exp = [%expr next_token] in
+    let next_token_exp = [%expr next_token] in (*the expression of the new handler*)
     let cont_edesc = Pexp_construct (locwrap cont_name, None) in
     let cont_exp = {pexp_desc = cont_edesc; pexp_loc = !default_loc; pexp_attributes = []} in
     let h = {h_pat = cont_pattern; h_exp = next_token_exp; h_type = Cont_handler} in
     let hgroup = Some {back = h; others = Handler_set.empty} in
     (hgroup, cont_exp)
+(*expression is a let expression. TODO: finish this*)
   | {pexp_desc = Pexp_let (rflag, vblist, e2); _} ->
     (match rflag with
      | Recursive -> raise (Utils.Not_yet_implemented "Pexp_let recursive")
