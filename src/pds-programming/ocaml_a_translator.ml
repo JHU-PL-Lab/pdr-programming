@@ -7,29 +7,37 @@ open Ast_helper;;
 open Ocaml_ast_utils;;
 open Asttypes;;
 
+(*helps create new variable names of the form "var"<int>*)
 type context =
   {mutable counter: int}
 
+(*creates a new context, with counter initialized to 0*)
 let new_context () =
   { counter = 0 }
 ;;
 
+(*given a context, creates a new variable name as a string and increments
+the counter*)
 let new_var_name (c : context) =
   let n = c.counter in
   c.counter <- c.counter + 1;
   "var" ^ string_of_int n
 ;;
 
+(*given a variable name as a string, returns an expression with
+expression_desc of Pexp_ident*)
 let string_to_exp_ident s =
   let s_desc = Pexp_ident (locwrap (Lident s)) in
   {pexp_desc = s_desc; pexp_loc = !default_loc; pexp_attributes = []}
 ;;
 
+(*given a variable name as a string, returns a pattern with
+  pattern_desc of Ppat_var*)
 let string_to_pat_var s =
   let desc = Ppat_var (locwrap s) in
   {ppat_desc = desc; ppat_loc = !default_loc; ppat_attributes = []}
 ;;
-
+(*hoists variables out of expressions into let-expressions invididually. *)
 (*TODO: deal with expressions inside patterns*)
 let rec a_translator e c =
   let {pexp_desc; _} = e in

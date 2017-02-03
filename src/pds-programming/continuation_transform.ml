@@ -51,12 +51,11 @@ let new_var_name (c : context) =
 ;;
 
 (*Handlers link code using Conts and Gotos. Each handler has the name of the
-  Cont or Goto, stored as a pattern, the expression this Cont or Goto "leads"
-  to, and a handlertype, which indicates whether the handler is a Cont or a
+  Cont or Goto, stored as a pattern, the expresion associated with this Cont or
+  Goto, and a handlertype, which indicates whether the handler is a Cont or a
   Goto. *)
 
-(*The handlertype type is used to indicate whether a handler is a Cont or a
-  Goto. *)
+(*used to indicate whether a handler is a Cont or a Goto. *)
 type handlertype =
   | Cont_handler
   | Goto_handler
@@ -73,8 +72,6 @@ type handler =
   [@@deriving eq, ord, show]
 ;;
 
-(*Specifies a way to compare handlers for use in handler_group, which has a set
-  of handlers as one of its fields TODO: is this right? *)
 module Handler_ord =
 struct
   type t = handler
@@ -84,12 +81,9 @@ end;;
 module Handler_set =
   Set.Make (Handler_ord);;
 
-(*A handler group is a collection of all of the pieces of code that are linked
-  together by handlers. Each handler in others links to one or more handlers;
-  at least one links to back, which is the final handler. The handler at back
-  can be moved to others if more handlers that execute after it are added.
-  There must always be a back; others can be an empty set.
-  TODO: is this simplifying things too much?*)
+(*A handler group is a collection of handlers arranged such that the back
+  handler, which is needed when new handlers are added, is separate from the
+  other handlers (if any), which are stored as a set in the others field.*)
 type handler_group =
   { back : handler;
     others : Handler_set.t [@printer Pp_utils.pp_set pp_handler Handler_set.enum]
@@ -97,9 +91,9 @@ type handler_group =
   [@@deriving eq, show]
 ;;
 
-(*Continuation transform returns an expression, which is the starting point of
-  the code, and a handler_group option, which is all subsequent continuations
-  of the code. This will be None if and only if there are no continuations. *)
+(*Continuation transform returns an expression, which is the starting point,
+  and a handler_group option, which contains all subsequent continuations. This
+  will be None if and only if there are no continuations. *)
 type continuation_transform_result = handler_group option * expression
   [@@deriving eq, show]
 ;;
@@ -131,16 +125,9 @@ let rec continuation_transform
     (e : expression)
     (context : context)
   : handler_group option * expression =
-(*Pattern-match the expression using its pexp_desc field, which is of type
-  expression_desc*)
   match e with
-(*expression is a variable; no continuations or recursive call needed*)
   | {pexp_desc = Pexp_ident _; _} -> (None, e)
-(*expression is a constant; no continuations or recursive call needed*)
   | {pexp_desc = Pexp_constant _; _} -> (None, e)
-(*expression uses result extension; expression within result extension not
-  evaluated, no continuations or recursive call needed*)
-(*TODO: do I call them extensions*)
   | [%expr [%result [%e? r] ]] -> (None, [%expr Result [%e r]])
 (*expression uses read extension; we need to create a new handler group and
   add a new handler to it. This new handler is a Continuation, with new_token
@@ -489,7 +476,41 @@ let rec continuation_transform
      | None ->
      | Some e3 -> raise (Utils.Not_yet_implemented "Pexp_sequence ")) *)
 
-  | {pexp_desc = Pexp_sequence _; _} -> raise (Utils.Not_yet_implemented "Pexp_sequence") (*TODO*)
+  | {pexp_desc = Pexp_sequence (e1, e2); _} ->
+    let (hgroup1_o, e1') = continuation_transform e1 context in
+    let (hgroup2_o, e2') = continuation_transform e2 context in
+    (match (hgroup1_o, hgroup2_o) with
+     | (None, None) ->
+       let new_e = [%expr [%e e1']; [%e e2']] in
+       (None, new_e)
+     | (None, Some hgroup2) ->
+       let new_e = [%expr [%e e1']; [%e e2']] in
+       (Some hgroup2, new_e)
+     | (Some hgroup1, None) ->
+       let hback1_exp = hgroup1.back.h_exp in
+       let new_hback_exp = [%expr [%e hback1_exp]; [%e e2']] in
+       let new_hback = {h_pat = hgroup1.back.h_pat;
+                        h_exp = new_hback_exp;
+                        h_type = hgroup1.back.h_type} in
+       let new_hgroup = {back = new_hback;
+                         others = hgroup1.others} in
+       (Some new_hgroup, e1')
+     | (Some hgroup1, Some hgroup2) ->
+       let hgo1 = hgroup1.others in
+       let hgb1_pat = hgroup1.back.h_pat in
+       let hgb1_exp = hgroup1.back.h_exp in
+       let hgb1_type = hgroup1.back.h_type in
+       let hgo2 = hgroup2.others in
+       let hgb2_back = hgroup2.back in
+       let new_handler_exp = [%expr [%e hgb1_exp]; [%e e2']] in
+       let new_handler = {h_pat = hgb1_pat;
+                          h_exp = new_handler_exp;
+                          h_type = hgb1_type} in
+       let new_hgroup_others =
+         Handler_set.union (Handler_set.add new_handler hgo1) hgo2 in
+       let new_hgroup = {back = hgb2_back;
+                         others = new_hgroup_others} in
+       (Some new_hgroup, e1'))
   | {pexp_desc = Pexp_while _; _} -> raise (Utils.Not_yet_implemented "Pexp_while")
   | {pexp_desc = Pexp_for _; _} -> raise (Utils.Not_yet_implemented "Pexp_for")
   | {pexp_desc = Pexp_constraint _; _} -> raise (Utils.Not_yet_implemented "Pexp_constraint")

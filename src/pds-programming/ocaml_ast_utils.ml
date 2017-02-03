@@ -34,6 +34,7 @@ end;;
 module String_set =
   Set.Make (String_ord);;
 
+(*for printing out string sets*)
 let show_stringset s =
   Pp_utils.pp_to_string (Pp_utils.pp_set Format.pp_print_string String_set.enum) s;;
 
