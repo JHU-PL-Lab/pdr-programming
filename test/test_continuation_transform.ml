@@ -693,6 +693,89 @@ let sequence_test_nested_gotos _ =
                               others = expected_others} in
   let expected = (expected_hgroup, expected_start) in
   assert_equal ~cmp:equal_continuation_transform_result ~printer:show_continuation_transform_result expected actual
+;;
+
+let try_test_1 _ =
+  let context1 = Ocaml_a_translator.new_context() in
+  let e = [%expr
+    try
+      5
+    with
+    | _ -> 0
+  ] in
+  let a_e = a_translator e context1 in
+  let context2 = Continuation_transform.new_context () in
+  let actual = continuation_transform a_e context2 in
+  let expected_start = [%expr
+    try
+      Goto0 5
+    with
+    | _ -> Goto1
+  ] in
+  let expected_back = {h_pat = [%pat? Goto0 __varct__0];
+                       h_exp = [%expr __varct__0];
+                       h_type = Goto_handler} in
+  let h_elt_1 = {h_pat = [%pat? Goto1];
+                 h_exp = [%expr Goto0 0];
+                 h_type = Goto_handler} in
+  let expected_others = Handler_set.singleton h_elt_1 in
+  let expected_hgroup = Some {back = expected_back;
+                              others = expected_others} in
+  let expected = (expected_hgroup, expected_start) in
+  assert_equal ~cmp:equal_continuation_transform_result ~printer:show_continuation_transform_result expected actual
+;;
+
+let try_test_2 _ =
+  let context1 = Ocaml_a_translator.new_context() in
+  let e = [%expr
+    try
+      (6, [%read])
+    with
+    | A -> 0
+    | B -> 1
+  ] in
+  let a_e = a_translator e context1 in
+  let context2 = Continuation_transform.new_context () in
+  let actual = continuation_transform a_e context2 in
+  let expected_start =
+    [%expr
+      try
+        let var0 = 6 in
+        Part0
+      with
+      | A -> Goto1
+      | B -> Goto2
+    ] in
+  let h_e_elt_exp =
+    [%expr
+      try
+        Goto0 (let var1 = next_token in
+               (var0, var1))
+      with
+      | A -> Goto1
+      | B -> Goto2
+    ] in
+  let h_e_elt = {h_pat = [%pat? Part0];
+                 h_exp = h_e_elt_exp;
+                 h_type = Cont_handler} in
+  let h_elt_1 = {h_pat = [%pat? Goto1];
+                 h_exp = [%expr Goto0 0];
+                 h_type = Goto_handler} in
+  let h_elt_2 = {h_pat = [%pat? Goto2];
+                 h_exp = [%expr Goto0 1];
+                 h_type = Goto_handler} in
+  let h_back = {h_pat = [%pat? Goto0 __varct__0];
+                h_exp = [%expr __varct__0];
+                h_type = Goto_handler} in
+  let h_others =
+    List.map Handler_set.singleton [h_elt_1; h_elt_2; h_e_elt]
+    |> List.fold_left Handler_set.union Handler_set.empty in
+  let expected_hgroup = Some {back = h_back;
+                              others = h_others} in
+  let expected = (expected_hgroup, expected_start)
+  in
+  assert_equal ~cmp:equal_continuation_transform_result ~printer:show_continuation_transform_result expected actual
+;;
 
 let tests = "Continuation_transform" >::: [
 
@@ -725,5 +808,7 @@ let tests = "Continuation_transform" >::: [
     "sequence test nested three" >:: sequence_test_nested_three;
     "sequence test nested if then else 1" >:: sequence_test_nested_ifthenelse_1;
     "sequence test nested gotos" >:: sequence_test_nested_gotos;
+    "try test 1" >:: try_test_1;
+    "try test 2" >:: try_test_2;
   ]
 ;;

@@ -266,7 +266,7 @@ let rec continuation_transform
     in
     let sets_and_gotos_list = List.map set_producer e_list in
     let (all_sets, all_gotos) = List.split sets_and_gotos_list in
-    let new_others = List.fold_left Handler_set.union Handler_set.empty all_sets in
+    let case_others = List.fold_left Handler_set.union Handler_set.empty all_sets in
     let v = new_var_name context in
     let v_pat = {ppat_desc = Ppat_var (locwrap v); ppat_loc = !default_loc; ppat_attributes = []} in
     let v_exp = {pexp_desc = Pexp_ident (locwrap (Lident v));
@@ -275,16 +275,46 @@ let rec continuation_transform
     let new_back = {h_pat = constructor_pat end_goto_name (Some v_pat);
                     h_exp = v_exp;
                     h_type = Goto_handler} in
-    let new_hgroup = Some {back = new_back; others = new_others} in
+    let case_hgroup = {back = new_back; others = case_others} in
     let all_gotos_exp =
       List.map (fun s -> constructor_exp s None) all_gotos in
     let case_tuples = List.combine p_list all_gotos_exp in
     let case_maker (casepat, caseexp) =
       {pc_lhs = casepat; pc_guard = None; pc_rhs = caseexp} in
     let newcaselist = List.map case_maker case_tuples in
-    let edesc = Pexp_try (e0, newcaselist) in
+    (*let edesc = Pexp_try (e0, newcaselist) in
     let start = {pexp_desc = edesc; pexp_loc = !default_loc; pexp_attributes = []} in
-    (new_hgroup, start)
+      (new_hgroup, start)*)
+    let (e_hgroup_o, e_start) = continuation_transform e0 context in
+    (match e_hgroup_o with
+     | None ->
+       let edesc = Pexp_try (constructor_exp end_goto_name (Some e_start), newcaselist) in
+       let start = {pexp_desc = edesc; pexp_loc = !default_loc; pexp_attributes = []} in
+       (Some case_hgroup, start)
+     | Some e_hgroup ->
+       let new_start_edesc = Pexp_try (e_start, newcaselist) in
+       let start = {pexp_desc = new_start_edesc; pexp_loc = !default_loc; pexp_attributes = []} in
+       let e_back = e_hgroup.back in
+       let e_back_exp = e_back.h_exp in
+       let new_e_back_exp = constructor_exp end_goto_name (Some e_back_exp) in
+       let new_e_back = {h_pat = e_back.h_pat;
+                         h_exp = new_e_back_exp;
+                         h_type = e_back.h_type} in
+       let try_map (c : case list) (h : handler) =
+         (let new_desc = Pexp_try (h.h_exp, c) in
+         let new_h_exp = {pexp_desc = new_desc;
+                          pexp_loc = !default_loc;
+                          pexp_attributes = []} in
+         {h_pat = h.h_pat;
+          h_exp = new_h_exp;
+          h_type = h.h_type}) in
+       let mapped_e_h_group_others = Handler_set.map (try_map newcaselist) e_hgroup.others in
+       let mapped_e_back = try_map newcaselist new_e_back in
+       let new_hgroup_others = (Handler_set.union mapped_e_h_group_others case_hgroup.others
+                                |> Handler_set.union (Handler_set.singleton mapped_e_back)) in
+       let new_hgroup = {back = case_hgroup.back;
+                         others = new_hgroup_others} in
+       (Some new_hgroup, start))
   | {pexp_desc = Pexp_tuple _; _} -> (None, e)
   | {pexp_desc = Pexp_construct _; _} -> (None, e)
   | {pexp_desc = Pexp_variant _; _} -> raise (Utils.Not_yet_implemented "Pexp_variant")
