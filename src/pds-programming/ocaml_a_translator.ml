@@ -131,15 +131,13 @@ let rec a_translator e c =
     [%expr let [%p string_to_pat_var a_e0_name] = [%e a_e0] in [%e newmatch]]
   | Pexp_try (e0, l) -> (*TODO: is this right? need to test*)
     let a_e0 = a_translator e0 c in
-    let a_e0_name = new_var_name c in
     let casemap case = (match case.pc_guard with
         | None ->
           {pc_lhs = case.pc_lhs; pc_guard = None; pc_rhs = a_translator case.pc_rhs c}
         | Some _ -> raise (Utils.Not_yet_implemented "Pexp_try with guard")) in
     let newcaselist = List.map casemap l in
-    let desc = Pexp_try (string_to_exp_ident a_e0_name, newcaselist) in
-    let newtry = {pexp_desc = desc; pexp_loc = !default_loc; pexp_attributes = []} in
-    [%expr let [%p string_to_pat_var a_e0_name] = [%e a_e0] in [%e newtry]]
+    let desc = Pexp_try (a_e0, newcaselist) in
+    {pexp_desc = desc; pexp_loc = !default_loc; pexp_attributes = []}
   | Pexp_tuple l ->
     let rec loop e_list v_list =
       (match e_list with

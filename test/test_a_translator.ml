@@ -398,6 +398,44 @@ let record_test_2 _ =
 
 (*TODO: test pexp_try*)
 
+let try_test_1 _ =
+  let context = new_context () in
+  let e = [%expr
+    try
+      5
+    with
+    | _ -> 6
+  ] in
+  let expected = [%expr
+    try
+      5
+    with
+    | _ -> 6
+  ] in
+  assert_equal ~printer:Pprintast.string_of_expression expected (a_translator e context)
+;;
+
+let try_test_2 _ =
+  let context = new_context () in
+  let e = [%expr
+    try
+      (4,5)
+    with
+    | _ -> (6,7)] in
+  let expected = [%expr
+    try
+      let var0 = 4 in
+      let var1 = 5 in
+      (var0, var1)
+    with
+    | _ ->
+      let var2 = 6 in
+      let var3 = 7 in
+      (var2, var3)
+  ] in
+  assert_equal ~printer:Pprintast.string_of_expression expected (a_translator e context)
+;;
+
 let tests = "A_translator" >::: [
 
     "ident test" >:: ident_test;
@@ -433,6 +471,8 @@ let tests = "A_translator" >::: [
     "field test 2" >:: field_test_2;
     "record test 1" >:: record_test_1;
     "record test 2" >:: record_test_2;
+    "try test 1" >:: try_test_1;
+    "try test 2" >:: try_test_2;
 
   ]
 ;;
