@@ -7,12 +7,20 @@ open Longident;;
 open Ast_helper;;
 
 (* let pp_expression = Pprintast.expression;; *)
-let pp_expression = Ocaml_ast_without_location.pp_expression;;
+let pp_expression fmt e =
+  Format.pp_print_text fmt "<<";
+  Pprintast.expression fmt e;
+  Format.pp_print_text fmt ">>";
+;;
 let equal_expression = Ocaml_ast_without_location.equal_expression;;
 let compare_expression = Ocaml_ast_without_location.compare_expression;;
 
 (* let pp_pattern = Pprintast.pattern;; *)
-let pp_pattern = Ocaml_ast_without_location.pp_pattern;;
+let pp_pattern fmt p =
+  Format.pp_print_text fmt "<<";
+  Pprintast.pattern fmt p;
+  Format.pp_print_text fmt ">>";
+;;
 let equal_pattern = Ocaml_ast_without_location.equal_pattern;;
 let compare_pattern = Ocaml_ast_without_location.compare_pattern;;
 

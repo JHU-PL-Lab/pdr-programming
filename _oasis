@@ -74,5 +74,19 @@ Executable "test"
     ppx_tools.metaquot,
     pds-programming
 
+Executable "sandbox"
+  Path: test/
+  MainIs: sandbox.ml
+  CompiledObject: native
+  ByteOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
+  NativeOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
+  BuildDepends:
+    batteries,
+    oUnit,
+    ppx_deriving.std,
+    ppx_tools,
+    ppx_tools.metaquot,
+    pds-programming
+
 Test test
   Command: $test
