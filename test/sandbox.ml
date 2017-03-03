@@ -1,6 +1,7 @@
 open Continuation_transform;;
 open Jhupllib_pp_utils;;
 open Ocaml_ast_utils;;
+open Ocaml_a_translator;;
 
 let () =
   let expr =
@@ -18,7 +19,8 @@ let () =
         end
     ]
   in
-  let hgo,e = continuation_transform expr @@ new_context () in
+  let a_expr = a_translator expr @@ Ocaml_a_translator.new_context () in
+  let hgo,e = continuation_transform a_expr @@ Continuation_transform.new_context () in
   begin
     match hgo with
     | None -> print_endline "<no handler group>"
