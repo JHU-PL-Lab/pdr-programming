@@ -11,7 +11,7 @@ Homepage: https://github.com/JHU-PL-Lab/pds-programming
 
 OASISFormat: 0.4
 BuildTools: ocamlbuild
-Plugins: DevFiles (0.4), META (0.4)
+Plugins: META (0.4)
 AlphaFeatures: ocamlbuild_more_args
 XOCamlbuildExtraArgs: -use-ocamlfind
 BuildDepends: threads
