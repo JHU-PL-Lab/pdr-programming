@@ -8,9 +8,12 @@ let () =
     [%expr
       match state with
       | Number n ->
-        let dividing_primes = foo n in
-        let p = dividing_primes in
-        [%result Number(n/p), [Prime]]
+        if n = 1 then
+          [%result (Count(0), [])]
+        else
+          let dividing_primes = foo n in
+          let p = dividing_primes in
+          [%result Number(n/p), [Prime]]
       | Count n ->
         begin
           match [%read] with
