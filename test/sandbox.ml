@@ -27,7 +27,9 @@ let () =
   begin
     match hgo with
     | None -> print_endline "<no handler group>"
-    | Some hg -> print_endline @@ show_handler_group hg
+    | Some hg ->
+      let dynamic_pop_function_body = dynamic_pop_generator hg in
+      print_endline @@ pp_to_string Pprintast.expression dynamic_pop_function_body
   end;
   print_endline @@ pp_to_string Pprintast.expression e
 ;;

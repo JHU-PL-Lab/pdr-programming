@@ -48,9 +48,8 @@ let read_test _ =
   let context2 = Continuation_transform.new_context () in
   let actual = continuation_transform a_e context2 in
   let expected_back =
-    {h_pat = [%pat? Part(Part0)];
-     h_exp = [%expr next_token];
-     h_type = Cont_handler} in
+    {h_exp = [%expr next_token];
+     h_type = Cont_handler ("Part0")} in
   let expected_others = Handler_set.empty in
   let expected_hgroup = Some {back = expected_back; others = expected_others} in
   let expected_start = [%expr Part(Part0)] in
@@ -105,9 +104,8 @@ let let_test_2 _ =
   let context2 = Continuation_transform.new_context () in
   let actual = continuation_transform a_e context2 in
   let expected_back =
-    {h_pat = [%pat? Part(Part0)];
-     h_exp = [%expr let var0 = next_token in let x = var0 in x];
-     h_type = Cont_handler} in
+    {h_exp = [%expr let var0 = next_token in let x = var0 in x];
+     h_type = Cont_handler "Part0"} in
   let expected_hset = Handler_set.empty in
   let expected_hgroup = Some {back = expected_back; others = expected_hset} in
   let expected_start = [%expr Part(Part0)] in
@@ -123,9 +121,8 @@ let let_test_3 _ =
   let context2 = Continuation_transform.new_context () in
   let actual = continuation_transform a_e context2 in
   let expected_back =
-    { h_pat = [%pat? Part(Part0)];
-      h_exp = [%expr let var0 = next_token in let y = var0 in Result (x, y)];
-      h_type = Cont_handler} in
+    { h_exp = [%expr let var0 = next_token in let y = var0 in Result (x, y)];
+      h_type = Cont_handler "Part0"} in
   let expected_hset = Handler_set.empty in
   let expected_hgroup = Some {back = expected_back; others = expected_hset} in
   let expected_start = [%expr let var1 = 3 in let x = var1 in Part(Part0)] in
@@ -144,13 +141,11 @@ let let_test_4 _ =
   let actual = continuation_transform a_e context2 in
   let expected_hset =
     Handler_set.singleton
-      ({ h_pat = [%pat? Part(Part0)];
-         h_exp = [%expr let var1 = next_token in let x = var1 in Part(Part1)];
-         h_type = Cont_handler}) in
+      ({ h_exp = [%expr let var1 = next_token in let x = var1 in Part(Part1)];
+         h_type = Cont_handler "Part0"}) in
   let expected_back =
-    {h_pat = [%pat? Part(Part1)];
-     h_exp = [%expr let var0 = next_token in let y = var0 in Result (x, y)];
-     h_type = Cont_handler}  in
+    {h_exp = [%expr let var0 = next_token in let y = var0 in Result (x, y)];
+     h_type = Cont_handler "Part1"}  in
   let expected_hgroup = Some {back = expected_back; others = expected_hset} in
   let expected_start = [%expr Part(Part0)] in
   let expected = (expected_hgroup, expected_start)
@@ -183,12 +178,11 @@ let tuple_test_2 _ =
   let context2 = Continuation_transform.new_context () in
   let actual = continuation_transform a_e context2 in
   let expected_back =
-    {h_pat = [%pat? Part(Part0)];
-     h_exp = [%expr let var2 =
+    {h_exp = [%expr let var2 =
                       let var1 = next_token in
                       (var0, var1) in
                     let x = var2 in Result x];
-     h_type = Cont_handler} in
+     h_type = Cont_handler "Part0"} in
   let expected_others = Handler_set.empty in
   let expected_hgroup = Some {back = expected_back; others = expected_others} in
   let expected_start = [%expr let var0 = 3 in Part(Part0)] in
@@ -204,14 +198,13 @@ let tuple_test_3 _ =
   let context2 = Continuation_transform.new_context () in
   let actual = continuation_transform a_e context2 in
   let expected_back =
-    {h_pat = [%pat? Part(Part0)];
-     h_exp = [%expr let var2 =
+    {h_exp = [%expr let var2 =
                       (let var0 = next_token in
                        let var1 = 3 in
                        (var0, var1))
                     in let x = var2 in
                     Result x];
-     h_type = Cont_handler} in
+     h_type = Cont_handler "Part0"} in
   let expected_others = Handler_set.empty in
   let expected_hgroup =
     Some {back = expected_back; others = expected_others} in
@@ -228,17 +221,15 @@ let tuple_test_4 _ =
   let context2 = Continuation_transform.new_context () in
   let actual = continuation_transform a_e context2 in
   let expected_back =
-    {h_pat = [%pat? Part(Part1)];
-     h_exp = [%expr let var2 =
+    {h_exp = [%expr let var2 =
                            (let var1 = next_token in
                             (var0, var1)) in
                          let x = var2 in
                     Result x];
-     h_type = Cont_handler} in
+     h_type = Cont_handler "Part1"} in
   let h_elt =
-    {h_pat = [%pat? Part(Part0)];
-     h_exp = [%expr let var0 = next_token in Part(Part1)];
-     h_type = Cont_handler} in
+    {h_exp = [%expr let var0 = next_token in Part(Part1)];
+     h_type = Cont_handler "Part0"} in
   let hset = Handler_set.singleton h_elt in
   let expected_hgroup = Some {back = expected_back; others = hset} in
   let expected_start = [%expr Part(Part0)] in
@@ -274,18 +265,14 @@ let ifthenelse_test_2 _ =
   let a_e = a_translator e context1 in
   let context2 = Continuation_transform.new_context () in
   let acutal = continuation_transform a_e context2 in
-  let expected_back = {h_pat = [%pat? Goto(Goto2 __varct__0)];
-                       h_exp = [%expr __varct__0];
-                       h_type = Goto_handler} in
-  let h_elt_1 = {h_pat = [%pat? Part(Part0)];
-                 h_exp = [%expr Goto(Goto2 next_token)];
-                 h_type = Cont_handler} in
-  let h_elt_2 = {h_pat = [%pat? Goto(Goto0)];
-                 h_exp = [%expr Part(Part0)];
-                 h_type = Goto_handler} in
-  let h_elt_3 = {h_pat = [%pat? Goto(Goto1)];
-                 h_exp = [%expr Goto(Goto2 0)];
-                 h_type = Goto_handler} in
+  let expected_back = {h_exp = [%expr __varct__0];
+                       h_type = Goto_handler ("Goto2", Some "__varct__0")} in
+  let h_elt_1 = {h_exp = [%expr Goto(Goto2 next_token)];
+                 h_type = Cont_handler "Part0"} in
+  let h_elt_2 = {h_exp = [%expr Part(Part0)];
+                 h_type = Goto_handler ("Goto0", None)} in
+  let h_elt_3 = {h_exp = [%expr Goto(Goto2 0)];
+                 h_type = Goto_handler ("Goto1", None)} in
   let expected_others =
     Handler_set.singleton h_elt_1
     |> Handler_set.add h_elt_2
@@ -305,18 +292,14 @@ let ifthenelse_test_3 _ =
   let a_e = a_translator e context1 in
   let context2 = Continuation_transform.new_context () in
   let actual = continuation_transform a_e context2 in
-  let expected_back = {h_pat = [%pat? Goto(Goto2 __varct__0)];
-                       h_exp = [%expr __varct__0];
-                       h_type = Goto_handler} in
-  let h_elt_1 = {h_pat = [%pat? Part(Part0)];
-                 h_exp = [%expr Goto(Goto2 next_token)];
-                 h_type = Cont_handler} in
-  let h_elt_2 = {h_pat = [%pat? Goto(Goto1)];
-                 h_exp = [%expr Part(Part0)];
-                 h_type = Goto_handler} in
-  let h_elt_3 = {h_pat = [%pat? Goto(Goto0)];
-                 h_exp = [%expr Goto(Goto2 0)];
-                 h_type = Goto_handler} in
+  let expected_back = {h_exp = [%expr __varct__0];
+                       h_type = Goto_handler ("Goto2", Some "__varct__0")} in
+  let h_elt_1 = {h_exp = [%expr Goto(Goto2 next_token)];
+                 h_type = Cont_handler "Part0"} in
+  let h_elt_2 = {h_exp = [%expr Part(Part0)];
+                 h_type = Goto_handler ("Goto1", None)} in
+  let h_elt_3 = {h_exp = [%expr Goto(Goto2 0)];
+                 h_type = Goto_handler ("Goto0", None)} in
   let expected_others =
     Handler_set.singleton h_elt_1
     |> Handler_set.add h_elt_2
@@ -339,28 +322,21 @@ let ifthenelse_test_4 _ =
   let a_e = a_translator e context1 in
   let context2 = Continuation_transform.new_context () in
   let actual = continuation_transform a_e context2 in
-  let expected_back = {h_pat = [%pat? Goto(Goto5 __varct__1)];
-                       h_exp = [%expr __varct__1];
-                       h_type = Goto_handler} in
-  let h_elt_1 = {h_pat = [%pat? Part(Part0)];
-                 h_exp = [%expr Goto(Goto2 next_token)];
-                 h_type = Cont_handler} in
-  let h_elt_2 = {h_pat = [%pat? Goto(Goto0)];
-                 h_exp = [%expr Part(Part0)];
-                 h_type = Goto_handler} in
-  let h_elt_3 = {h_pat = [%pat? Goto(Goto1)];
-                 h_exp = [%expr Goto(Goto2 0)];
-                 h_type = Goto_handler} in
-  let h_elt_4 = {h_pat = [%pat? Goto(Goto2 __varct__0)];
-                 h_exp = [%expr Goto(Goto5 __varct__0)];
-                 h_type = Goto_handler} in
-  let h_elt_5 = {h_pat = [%pat? Goto(Goto3)];
-                 h_exp = [%expr let var1 = y in
+  let expected_back = {h_exp = [%expr __varct__1];
+                       h_type = Goto_handler ("Goto5", Some "__varct__1")} in
+  let h_elt_1 = {h_exp = [%expr Goto(Goto2 next_token)];
+                 h_type = Cont_handler "Part0"} in
+  let h_elt_2 = {h_exp = [%expr Part(Part0)];
+                 h_type = Goto_handler ("Goto0", None)} in
+  let h_elt_3 = {h_exp = [%expr Goto(Goto2 0)];
+                 h_type = Goto_handler ("Goto1", None)} in
+  let h_elt_4 = {h_exp = [%expr Goto(Goto5 __varct__0)];
+                 h_type = Goto_handler ("Goto2", Some "__varct__0")} in
+  let h_elt_5 = {h_exp = [%expr let var1 = y in
                                 if var1 then Goto(Goto0) else Goto(Goto1)];
-                 h_type = Goto_handler} in
-  let h_elt_6 = {h_pat = [%pat? Goto(Goto4)];
-                 h_exp = [%expr Goto(Goto5 0)];
-                 h_type = Goto_handler} in
+                 h_type = Goto_handler ("Goto3", None)} in
+  let h_elt_6 = {h_exp = [%expr Goto(Goto5 0)];
+                 h_type = Goto_handler ("Goto4", None)} in
   let expected_others =
     Handler_set.singleton h_elt_1
     |> Handler_set.add h_elt_2

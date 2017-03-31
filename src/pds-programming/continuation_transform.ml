@@ -31,7 +31,7 @@ let new_context () =
 let new_cont_name (c : context) =
   let n = c.c_counter in
   c.c_counter <- c.c_counter + 1;
-  Lident ("Part" ^ string_of_int n)
+  "Part" ^ string_of_int n
 ;;
 
 (*creates a new name of type Lident for a Goto and updates the corresponding
@@ -39,7 +39,7 @@ let new_cont_name (c : context) =
 let new_goto_name (c : context) =
   let n = c.g_counter in
   c.g_counter <- c.g_counter + 1;
-  Lident ("Goto" ^ string_of_int n)
+  "Goto" ^ string_of_int n
 ;;
 
 (*creates a new name of type string for a variable and updates the
@@ -55,17 +55,23 @@ let new_var_name (c : context) =
   Goto, and a handlertype, which indicates whether the handler is a Cont or a
   Goto. *)
 
+
+
 (*used to indicate whether a handler is a Cont or a Goto. *)
 type handlertype =
-  | Cont_handler
-  | Goto_handler
+  | Cont_handler of string
+  (** argument is name of continuation
+  *)
+  | Goto_handler of string * string option
+  (** first argument is name of goto, second is name of variable
+  *)
   [@@deriving eq, ord, show]
 ;;
 
 (*The handler type contains the three parts of a handler: its name, the
   expression it is linked to, and its type (as indicated by a handlertype). *)
 type handler =
-  { h_pat : pattern;
+  {
     h_exp : expression;
     h_type : handlertype;
   }
@@ -135,16 +141,12 @@ let rec continuation_transform
   new handler becomes the start expression.*)
   | [%expr [%read]] ->
     let inner_cont_name = new_cont_name context in
-    let inner_cont_pdesc = Ppat_construct (locwrap inner_cont_name, None) in
-    let inner_cont_pattern = {ppat_desc = inner_cont_pdesc; ppat_loc = !default_loc; ppat_attributes = []} in
-    let cont_pdesc = Ppat_construct (locwrap (Lident "Part"), Some inner_cont_pattern) in
-    let cont_pattern = {ppat_desc = cont_pdesc; ppat_loc = !default_loc; ppat_attributes = []} in
     let next_token_exp = [%expr next_token] in (*the expression of the new handler*)
-    let inner_cont_edesc = Pexp_construct (locwrap inner_cont_name, None) in
+    let inner_cont_edesc = Pexp_construct (locwrap @@ Lident inner_cont_name, None) in
     let inner_cont_exp = {pexp_desc = inner_cont_edesc; pexp_loc = !default_loc; pexp_attributes = []} in
     let cont_edesc = Pexp_construct (locwrap (Lident "Part"), Some inner_cont_exp) in
     let cont_exp = {pexp_desc = cont_edesc; pexp_loc = !default_loc; pexp_attributes = []} in
-    let h = {h_pat = cont_pattern; h_exp = next_token_exp; h_type = Cont_handler} in
+    let h = {h_exp = next_token_exp; h_type = Cont_handler inner_cont_name} in
     let hgroup = Some {back = h; others = Handler_set.empty} in
     (hgroup, cont_exp)
 (*expression is a let expression. TODO: finish this comment*)
@@ -199,18 +201,15 @@ let rec continuation_transform
       ((match hgroup_i_o with
        | None ->
          let h_i =
-           {h_pat = constructor_pat (Lident "Goto") (Some (constructor_pat goto_i_name None));
-            h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp end_goto_name (Some e_i')));
-            h_type = Goto_handler} in
+           {h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp (Lident end_goto_name) (Some e_i')));
+            h_type = Goto_handler (goto_i_name, None)} in
          Handler_set.singleton h_i
        | Some hgroup_i ->
          let h_i1 =
-           {h_pat = constructor_pat (Lident "Goto") (Some (constructor_pat goto_i_name None));
-            h_exp = e_i';
-            h_type = Goto_handler} in
+           {h_exp = e_i';
+            h_type = Goto_handler (goto_i_name, None)} in
          let h_i2 =
-           {h_pat = hgroup_i.back.h_pat;
-            h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp end_goto_name (Some hgroup_i.back.h_exp)));
+           {h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp (Lident end_goto_name) (Some hgroup_i.back.h_exp)));
             h_type = hgroup_i.back.h_type} in
          Handler_set.singleton h_i1
          |> Handler_set.add h_i2
@@ -220,16 +219,14 @@ let rec continuation_transform
     let (all_sets, all_gotos) = List.split sets_and_gotos_list in
     let new_others = List.fold_left Handler_set.union Handler_set.empty all_sets in
     let v = new_var_name context in
-    let v_pat = {ppat_desc = Ppat_var (locwrap v); ppat_loc = !default_loc; ppat_attributes = []} in
     let v_exp = {pexp_desc = Pexp_ident (locwrap (Lident v));
                  pexp_loc = !default_loc;
                  pexp_attributes = []} in
-    let new_back = {h_pat = constructor_pat (Lident "Goto") (Some (constructor_pat end_goto_name (Some v_pat)));
-                    h_exp = v_exp;
-                    h_type = Goto_handler} in
+    let new_back = {h_exp = v_exp;
+                    h_type = Goto_handler (end_goto_name, Some v)} in
     let new_hgroup = Some {back = new_back; others = new_others} in
     let all_gotos_exp =
-      List.map (fun s -> constructor_exp (Lident "Goto") (Some (constructor_exp s None))) all_gotos in
+      List.map (fun s -> constructor_exp (Lident "Goto") (Some (constructor_exp s None))) (List.map (fun s -> Lident s) all_gotos) in
     let case_tuples = List.combine p_list all_gotos_exp in
     let case_maker (casepat, caseexp) =
       {pc_lhs = casepat; pc_guard = None; pc_rhs = caseexp} in
@@ -251,18 +248,15 @@ let rec continuation_transform
       ((match hgroup_i_o with
           | None ->
             let h_i =
-              {h_pat = constructor_pat (Lident "Goto") (Some (constructor_pat goto_i_name None));
-               h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp end_goto_name (Some e_i')));
-               h_type = Goto_handler} in
+              {h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp (Lident end_goto_name) (Some e_i')));
+               h_type = Goto_handler (goto_i_name, None)} in
             Handler_set.singleton h_i
           | Some hgroup_i ->
             let h_i1 =
-              {h_pat = constructor_pat (Lident "Goto") (Some (constructor_pat goto_i_name None));
-               h_exp = e_i';
-               h_type = Goto_handler} in
+              {h_exp = e_i';
+               h_type = Goto_handler (goto_i_name, None)} in
             let h_i2 =
-              {h_pat = hgroup_i.back.h_pat;
-               h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp end_goto_name (Some hgroup_i.back.h_exp)));
+              {h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp (Lident end_goto_name) (Some hgroup_i.back.h_exp)));
                h_type = hgroup_i.back.h_type} in
             Handler_set.singleton h_i1
             |> Handler_set.add h_i2
@@ -272,16 +266,14 @@ let rec continuation_transform
     let (all_sets, all_gotos) = List.split sets_and_gotos_list in
     let case_others = List.fold_left Handler_set.union Handler_set.empty all_sets in
     let v = new_var_name context in
-    let v_pat = {ppat_desc = Ppat_var (locwrap v); ppat_loc = !default_loc; ppat_attributes = []} in
     let v_exp = {pexp_desc = Pexp_ident (locwrap (Lident v));
                  pexp_loc = !default_loc;
                  pexp_attributes = []} in
-    let new_back = {h_pat = constructor_pat (Lident "Goto") (Some (constructor_pat end_goto_name (Some v_pat)));
-                    h_exp = v_exp;
-                    h_type = Goto_handler} in
+    let new_back = {h_exp = v_exp;
+                    h_type = Goto_handler (end_goto_name, Some v)} in
     let case_hgroup = {back = new_back; others = case_others} in
     let all_gotos_exp =
-      List.map (fun s -> constructor_exp (Lident "Goto") (Some (constructor_exp s None))) all_gotos in
+      List.map (fun s -> constructor_exp (Lident "Goto") (Some (constructor_exp s None))) (List.map (fun s -> Lident s) all_gotos) in
     let case_tuples = List.combine p_list all_gotos_exp in
     let case_maker (casepat, caseexp) =
       {pc_lhs = casepat; pc_guard = None; pc_rhs = caseexp} in
@@ -292,7 +284,7 @@ let rec continuation_transform
     let (e_hgroup_o, e_start) = continuation_transform e0 context in
     (match e_hgroup_o with
      | None ->
-       let edesc = Pexp_try (constructor_exp (Lident "Goto") (Some (constructor_exp end_goto_name (Some e_start))), newcaselist) in
+       let edesc = Pexp_try (constructor_exp (Lident "Goto") (Some (constructor_exp (Lident end_goto_name) (Some e_start))), newcaselist) in
        let start = {pexp_desc = edesc; pexp_loc = !default_loc; pexp_attributes = []} in
        (Some case_hgroup, start)
      | Some e_hgroup ->
@@ -300,17 +292,15 @@ let rec continuation_transform
        let start = {pexp_desc = new_start_edesc; pexp_loc = !default_loc; pexp_attributes = []} in
        let e_back = e_hgroup.back in
        let e_back_exp = e_back.h_exp in
-       let new_e_back_exp = constructor_exp (Lident "Goto") (Some (constructor_exp end_goto_name (Some e_back_exp))) in
-       let new_e_back = {h_pat = e_back.h_pat;
-                         h_exp = new_e_back_exp;
+       let new_e_back_exp = constructor_exp (Lident "Goto") (Some (constructor_exp (Lident end_goto_name) (Some e_back_exp))) in
+       let new_e_back = {h_exp = new_e_back_exp;
                          h_type = e_back.h_type} in
        let try_map (c : case list) (h : handler) =
          (let new_desc = Pexp_try (h.h_exp, c) in
          let new_h_exp = {pexp_desc = new_desc;
                           pexp_loc = !default_loc;
                           pexp_attributes = []} in
-         {h_pat = h.h_pat;
-          h_exp = new_h_exp;
+         {h_exp = new_h_exp;
           h_type = h.h_type}) in
        let mapped_e_h_group_others = Handler_set.map (try_map newcaselist) e_hgroup.others in
        let mapped_e_back = try_map newcaselist new_e_back in
@@ -351,49 +341,41 @@ let rec continuation_transform
             | Some hgroup2 ->
               Handler_set.union
                 (Handler_set.singleton
-                   {h_pat = hgroup2.back.h_pat;
-                    h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp goto4_name (Some hgroup2.back.h_exp)));
+                {h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp (Lident goto4_name) (Some hgroup2.back.h_exp)));
                     h_type = hgroup2.back.h_type})
                 (Handler_set.singleton
-                   {h_pat = constructor_pat (Lident "Goto") (Some(constructor_pat goto2_name None));
-                    h_exp = e2';
-                    h_type = Goto_handler})
+                   {h_exp = e2';
+                    h_type = Goto_handler (goto2_name, None)})
             | None ->
               Handler_set.singleton
-                {h_pat = constructor_pat (Lident "Goto") (Some (constructor_pat goto2_name None));
-                 h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp goto4_name (Some e2')));
-                h_type = Goto_handler})
+                {h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp (Lident goto4_name) (Some e2')));
+                 h_type = Goto_handler (goto2_name, None)})
          |> Handler_set.union
            (match hgroup3_o with
              | Some hgroup3 ->
                Handler_set.union
                  (Handler_set.singleton
-                    {h_pat = hgroup3.back.h_pat;
-                     h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp goto4_name (Some hgroup3.back.h_exp)));
+                    {h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp (Lident goto4_name) (Some hgroup3.back.h_exp)));
                      h_type = hgroup3.back.h_type})
                  (Handler_set.singleton
-                    {h_pat = constructor_pat (Lident "Goto") (Some (constructor_pat goto3_name None));
-                     h_exp = e3';
-                     h_type = Goto_handler})
+                    {h_exp = e3';
+                     h_type = Goto_handler (goto3_name, None)})
              | None ->
                Handler_set.singleton
-                 ({h_pat = constructor_pat (Lident "Goto") (Some (constructor_pat goto3_name None));
-                   h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp goto4_name (Some e3')));
-                   h_type = Goto_handler}))
+                 ({h_exp = constructor_exp (Lident "Goto") (Some (constructor_exp (Lident goto4_name) (Some e3')));
+                   h_type = Goto_handler (goto3_name, None)}))
        in
        let hgroup_back =
          let x0_name = new_var_name context in
-         let x0_pat = {ppat_desc = Ppat_var (locwrap x0_name); ppat_loc = !default_loc; ppat_attributes = []} in
-         {h_pat = constructor_pat (Lident "Goto") (Some (constructor_pat goto4_name (Some x0_pat)));
-          h_exp = {pexp_desc = Pexp_ident (locwrap (Lident x0_name));
+         {h_exp = {pexp_desc = Pexp_ident (locwrap (Lident x0_name));
                    pexp_loc = !default_loc;
                    pexp_attributes = []};
-          h_type = Goto_handler}
+          h_type = Goto_handler (goto4_name, Some x0_name)}
        in
        let hgroup = Some {back = hgroup_back; others = hgroup_others} in
        let new_e = [%expr if [%e e1]
-                          then [%e constructor_exp (Lident "Goto") (Some (constructor_exp goto2_name None))]
-                          else [%e constructor_exp (Lident "Goto") (Some (constructor_exp goto3_name None))]] in
+                          then [%e constructor_exp (Lident "Goto") (Some (constructor_exp (Lident goto2_name) None))]
+                          else [%e constructor_exp (Lident "Goto") (Some (constructor_exp (Lident goto3_name) None))]] in
        (hgroup, new_e))
   | {pexp_desc = Pexp_sequence (e1, e2); _} ->
     let (hgroup1_o, e1') = continuation_transform e1 context in
@@ -408,22 +390,19 @@ let rec continuation_transform
      | (Some hgroup1, None) ->
        let hback1_exp = hgroup1.back.h_exp in
        let new_hback_exp = [%expr [%e hback1_exp]; [%e e2']] in
-       let new_hback = {h_pat = hgroup1.back.h_pat;
-                        h_exp = new_hback_exp;
+       let new_hback = {h_exp = new_hback_exp;
                         h_type = hgroup1.back.h_type} in
        let new_hgroup = {back = new_hback;
                          others = hgroup1.others} in
        (Some new_hgroup, e1')
      | (Some hgroup1, Some hgroup2) ->
        let hgo1 = hgroup1.others in
-       let hgb1_pat = hgroup1.back.h_pat in
        let hgb1_exp = hgroup1.back.h_exp in
        let hgb1_type = hgroup1.back.h_type in
        let hgo2 = hgroup2.others in
        let hgb2_back = hgroup2.back in
        let new_handler_exp = [%expr [%e hgb1_exp]; [%e e2']] in
-       let new_handler = {h_pat = hgb1_pat;
-                          h_exp = new_handler_exp;
+       let new_handler = {h_exp = new_handler_exp;
                           h_type = hgb1_type} in
        let new_hgroup_others =
          Handler_set.union (Handler_set.add new_handler hgo1) hgo2 in
