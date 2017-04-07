@@ -2,6 +2,7 @@ open Continuation_transform;;
 open Jhupllib_pp_utils;;
 open Ocaml_ast_utils;;
 open Ocaml_a_translator;;
+open Pds_transform;;
 
 let () =
   let expr =
@@ -28,8 +29,13 @@ let () =
     match hgo with
     | None -> print_endline "<no handler group>"
     | Some hg ->
-      let dynamic_pop_function_body = dynamic_pop_generator hg in
-      print_endline @@ pp_to_string Pprintast.expression dynamic_pop_function_body
+      let dynamic_pop_function_body = dynamic_pop_function_generator hg in
+      print_endline "DYNAMIC POP FUNCTION BODY";
+      print_endline @@ pp_to_string Pprintast.expression dynamic_pop_function_body;
+      let goto_function_body = goto_function_generator hg in
+      print_endline "GOTO FUNCTION BODY";
+      print_endline @@ pp_to_string Pprintast.expression goto_function_body;
   end;
-  print_endline @@ pp_to_string Pprintast.expression e
+  print_endline "INITIAL FUNCTION GENERATOR";
+  print_endline @@ pp_to_string Pprintast.expression (initial_function_generator e)
 ;;
