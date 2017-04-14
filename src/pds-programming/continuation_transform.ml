@@ -325,7 +325,7 @@ let rec continuation_transform
     in
     let (hgroup3_o, e3') = continuation_transform e3 context in
     (match (hgroup2_o, hgroup3_o) with
-     | (None, None) ->  (None, e)
+     | (None, None) ->  (None, [%expr if [%e e1] then [%e e2'] else [%e e3']])
      | (_, _) ->
        let goto2_name = new_goto_name context in
        let goto3_name = new_goto_name context in

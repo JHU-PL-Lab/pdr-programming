@@ -8,7 +8,7 @@ let () =
   let expr =
     [%expr
       match state with
-      | Number n ->
+       | Number n ->
         if n = 1 then
           [%result (Count(0), [])]
         else
@@ -21,7 +21,7 @@ let () =
           | Bottom -> [%result Count(n), []]
           | Prime -> [%result Count(n+1), []]
         end
-    ]
+        ]
   in
   let a_expr = a_translator expr @@ Ocaml_a_translator.new_context () in
   let hgo,e = continuation_transform a_expr @@ Continuation_transform.new_context () in
