@@ -36,8 +36,9 @@ Library "pds-programming"
     Continuation_transform,
     Ocaml_a_translator,
     Ocaml_ast_utils,
-    Ocaml_ast_without_location,
+    Ocaml_ast_with_ops,
     Pds_programming,
+    Pds_transform,
     Ppx_utils
   BuildDepends:
     batteries,

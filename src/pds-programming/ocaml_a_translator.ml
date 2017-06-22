@@ -220,6 +220,7 @@ let rec a_translator e c =
   | Pexp_setinstvar _ -> raise (Utils.Not_yet_implemented "Pexp_setinstvar")
   | Pexp_override _ -> raise (Utils.Not_yet_implemented "Pexp_override")
   | Pexp_letmodule _ -> raise (Utils.Not_yet_implemented "Pexp_letmodule")
+  | Pexp_letexception _ -> raise (Utils.Not_yet_implemented "Pexp_letexception")
   | Pexp_assert _ -> raise (Utils.Not_yet_implemented "Pexp_assert")
   | Pexp_lazy _ -> raise (Utils.Not_yet_implemented "Pexp_lazy")
   | Pexp_poly _ -> raise (Utils.Not_yet_implemented "Pexp_poly")
@@ -228,5 +229,5 @@ let rec a_translator e c =
   | Pexp_pack _ -> raise (Utils.Not_yet_implemented "Pexp_pack")
   | Pexp_open _ -> raise (Utils.Not_yet_implemented "Pexp_open")
   | Pexp_extension _ -> e
-
+  | Pexp_unreachable -> e
 ;;

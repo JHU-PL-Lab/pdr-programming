@@ -60,11 +60,9 @@ let new_var_name (c : context) =
 (*used to indicate whether a handler is a Cont or a Goto. *)
 type handlertype =
   | Cont_handler of string
-  (** argument is name of continuation
-  *)
+  (** argument is name of continuation *)
   | Goto_handler of string * string option
-  (** first argument is name of goto, second is name of variable
-  *)
+  (** first argument is name of goto, second is name of variable *)
   [@@deriving eq, ord, show]
 ;;
 
@@ -418,6 +416,7 @@ let rec continuation_transform
   | {pexp_desc = Pexp_setinstvar _; _} -> raise (Utils.Not_yet_implemented "Pexp_setinstvar")
   | {pexp_desc = Pexp_override _; _} -> raise (Utils.Not_yet_implemented "Pexp_override")
   | {pexp_desc = Pexp_letmodule _; _} -> raise (Utils.Not_yet_implemented "Pexp_letmodule")
+  | {pexp_desc = Pexp_letexception _; _} -> raise (Utils.Not_yet_implemented "Pexp_letexception")
   | {pexp_desc = Pexp_assert _; _} -> raise (Utils.Not_yet_implemented "Pexp_assert")
   | {pexp_desc = Pexp_lazy _; _} -> raise (Utils.Not_yet_implemented "Pexp_lazy")
   | {pexp_desc = Pexp_poly _; _} -> raise (Utils.Not_yet_implemented "Pexp_poly")
@@ -426,4 +425,5 @@ let rec continuation_transform
   | {pexp_desc = Pexp_pack _; _} -> raise (Utils.Not_yet_implemented "Pexp_pack")
   | {pexp_desc = Pexp_open _; _} -> raise (Utils.Not_yet_implemented "Pexp_open")
   | {pexp_desc = Pexp_extension _; _}-> raise (Utils.Not_yet_implemented "Pexp_extension")
+  | {pexp_desc = Pexp_unreachable; _} -> raise (Utils.Not_yet_implemented "Pexp_unreachable")
 ;;

@@ -13,8 +13,8 @@ let pp_expression fmt e =
   Pprintast.expression fmt e;
   Format.pp_print_text fmt ">>";
 ;;
-let equal_expression = Ocaml_ast_without_location.equal_expression;;
-let compare_expression = Ocaml_ast_without_location.compare_expression;;
+let equal_expression = Ocaml_ast_with_ops.equal_expression;;
+let compare_expression = Ocaml_ast_with_ops.compare_expression;;
 
 (* let pp_pattern = Pprintast.pattern;; *)
 let pp_pattern fmt p =
@@ -22,8 +22,8 @@ let pp_pattern fmt p =
   Pprintast.pattern fmt p;
   Format.pp_print_text fmt ">>";
 ;;
-let equal_pattern = Ocaml_ast_without_location.equal_pattern;;
-let compare_pattern = Ocaml_ast_without_location.compare_pattern;;
+let equal_pattern = Ocaml_ast_with_ops.equal_pattern;;
+let compare_pattern = Ocaml_ast_with_ops.compare_pattern;;
 
 exception Unflattened_extension;;
 
@@ -80,7 +80,8 @@ let rec varmatch p =
   | Ppat_lazy p1 -> varmatch p1
   | Ppat_unpack _ -> raise (Utils.Not_yet_implemented "varmatch Ppat_unpack")
   | Ppat_exception pat -> varmatch pat
-  | Ppat_extension _ -> raise Unflattened_extension;; (*TODO: how does this work?*)
+  | Ppat_extension _ -> raise (Utils.Not_yet_implemented "varmatch Ppat_extension")
+  | Ppat_open _ -> raise (Utils.Not_yet_implemented "varmatch Ppat_open")
 
 (*determines free variables in a given expression. takes bound, a string set of
   variables that are already bound, and expr, an expression. returns a string
@@ -186,6 +187,7 @@ let rec freevars bound expr =
   | Pexp_setinstvar _ -> raise (Utils.Not_yet_implemented "freevars Pexp_setinstvar")
   | Pexp_override _ -> raise (Utils.Not_yet_implemented "freevars Pexp_override")
   | Pexp_letmodule _ -> raise (Utils.Not_yet_implemented "freevars Pexp_letmodule")
+  | Pexp_letexception _ -> raise (Utils.Not_yet_implemented "freevars Pexp_letexception")
   | Pexp_assert e -> freevars bound e
   | Pexp_lazy e -> freevars bound e
   | Pexp_poly _ -> raise (Utils.Not_yet_implemented "freevars Pexp_poly")
@@ -193,4 +195,6 @@ let rec freevars bound expr =
   | Pexp_newtype _ -> raise (Utils.Not_yet_implemented "freevars Pexp_newtype")
   | Pexp_pack _ -> raise (Utils.Not_yet_implemented "freevars Pexp_pack")
   | Pexp_open _ -> raise (Utils.Not_yet_implemented "freevars Pexp_open")
-  | Pexp_extension _ -> raise Unflattened_extension;;
+  | Pexp_extension _ -> raise Unflattened_extension
+  | Pexp_unreachable -> raise (Utils.Not_yet_implemented "freevars Pexp_unreachable")
+;;
