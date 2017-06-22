@@ -1,3 +1,7 @@
+(**
+   This module contains utilities for interacting with OCaml ASTs.
+*)
+
 open Batteries;;
 open Jhupllib;;
 
@@ -6,7 +10,6 @@ open Asttypes;;
 open Longident;;
 open Ast_helper;;
 
-(*TODO: what is this*)
 (* let pp_expression = Pprintast.expression;; *)
 let pp_expression fmt e =
   Format.pp_print_text fmt "<<";

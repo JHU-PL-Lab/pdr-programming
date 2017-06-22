@@ -1,3 +1,8 @@
+(**
+   This module performs continuation transformation on OCaml ASTs which include
+   PDS programming constructs.
+*)
+
 open Jhupllib;;
 
 open Parsetree;;
@@ -6,6 +11,9 @@ open Batteries;;
 open Longident;;
 open Ast_helper;;
 open Ocaml_ast_utils;;
+
+(* TODO *)
+
 
 (*The context type is used to make sure each Cont (continuation), Goto,
   and variable created by the continuation transform function has a unique
