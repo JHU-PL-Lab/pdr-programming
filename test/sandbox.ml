@@ -1,41 +1,8 @@
-open Continuation_transform;;
-open Jhupllib_pp_utils;;
-open Ocaml_ast_utils;;
-open Ocaml_a_translator;;
-open Pds_transform;;
-
-let () =
-  let expr =
-    [%expr
-      match state with
-       | Number n ->
-        if n = 1 then
-          [%result (Count(0), [])]
-        else
-          let dividing_primes = foo n in
-          let p = dividing_primes in
-          [%result Number(n/p), [Prime]]
-      | Count n ->
-        begin
-          match [%read] with
-          | Bottom -> [%result Count(n), []]
-          | Prime -> [%result Count(n+1), []]
-        end
-        ]
-  in
-  let a_expr = a_translator expr @@ Ocaml_a_translator.new_context () in
-  let hgo,e = continuation_transform a_expr @@ Continuation_transform.new_context () in
-  begin
-    match hgo with
-    | None -> print_endline "<no handler group>"
-    | Some hg ->
-      let dynamic_pop_function_body = dynamic_pop_function_generator hg in
-      print_endline "DYNAMIC POP FUNCTION BODY";
-      print_endline @@ pp_to_string Pprintast.expression dynamic_pop_function_body;
-      let goto_function_body = goto_function_generator hg in
-      print_endline "GOTO FUNCTION BODY";
-      print_endline @@ pp_to_string Pprintast.expression goto_function_body;
-  end;
-  print_endline "INITIAL FUNCTION GENERATOR";
-  print_endline @@ pp_to_string Pprintast.expression (initial_function_generator e)
+let main () =
+  [%expr f 4]
+  |> A_normalizer.a_translate
+  |> Pprintast.string_of_expression
+  |> print_endline
 ;;
+
+main ();;

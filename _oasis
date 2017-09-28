@@ -1,13 +1,13 @@
-Name: pds-programming
+Name: pdr-programming
 Version: 0.1
-OCamlVersion: >= 4.01
+OCamlVersion: >= 4.04
 Synopsis: A metaprogramming library for specifying abstract push-down systems.
 Authors: JHU PL Lab <pl.cs@jhu.edu>
 License: Apache
 
 Maintainers: JHU PL Lab <pl.cs@jhu.edu>
 Description: A library which provides metaprogramming tools for the specification of abstract push-down systems.  In particular, this library generates client code for the pds-reachability library.
-Homepage: https://github.com/JHU-PL-Lab/pds-programming
+Homepage: https://github.com/JHU-PL-Lab/pdr-programming
 
 OASISFormat: 0.4
 BuildTools: ocamlbuild
@@ -26,68 +26,63 @@ PreCleanCommand: ./.execute_if_exists ./.local_preclean
 
 SourceRepository head
   Type: git
-  Location: https://github.com/JHU-PL-Lab/pds-programming.git
-  Browser: https://github.com/JHU-PL-Lab/pds-programming
+  Location: https://github.com/JHU-PL-Lab/pdr-programming.git
+  Browser: https://github.com/JHU-PL-Lab/pdr-programming
   Branch: master
 
-Library "pds-programming"
-  Path: src/pds-programming
+Library "pdr-programming"
+  Path: src
   Modules:
-    Continuation_transform,
-    Ocaml_a_translator,
-    Ocaml_ast_utils,
-    Ocaml_ast_with_ops,
-    Pds_programming,
-    Pds_transform,
-    Ppx_utils
-  BuildDepends:
-    batteries,
-    compiler-libs.common,
-    jhupllib,
-    pds-reachability,
-    ppx_deriving.std,
-    ppx_import,
-    ppx_tools,
-    ppx_tools.metaquot
+    Pdr_programming
 
-Executable "ppx_pds_programming"
-  Path: src/ppx-pds-programming
-  MainIs: ppx_pds_programming.ml
-  CompiledObject: native
+Library "utils"
+  FindlibParent: pdr-programming
+  Path: src/utils
+  Modules:
+    Variable_utils
   BuildDepends:
     batteries,
-    compiler-libs.common,
-    ppx_tools,
-    ppx_tools.metaquot,
-    pds-programming
+    jhupllib,
+    ppx_deriving.std
+
+Library "a-normalization"
+  FindlibParent: pdr-programming
+  Path: src/a_normalization
+  Modules:
+    A_normalizer
+  BuildDepends:
+    batteries,
+    jhupllib,
+    ppx_deriving.std,
+    pdr-programming.utils
 
 Executable "test"
   Path: test/
   MainIs: test.ml
   CompiledObject: native
-  ByteOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
-  NativeOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
+  #ByteOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
+  #NativeOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
   BuildDepends:
     batteries,
     oUnit,
     ppx_deriving.std,
     ppx_tools,
     ppx_tools.metaquot,
-    pds-programming
+    pdr-programming.a-normalization
 
 Executable "sandbox"
   Path: test/
   MainIs: sandbox.ml
   CompiledObject: native
-  ByteOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
-  NativeOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
+  #ByteOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
+  #NativeOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
   BuildDepends:
     batteries,
     oUnit,
     ppx_deriving.std,
     ppx_tools,
     ppx_tools.metaquot,
-    pds-programming
+    pdr-programming.a-normalization
 
 Test test
   Command: $test
