@@ -26,23 +26,14 @@ let constant_test _ =
 let tuple_test_1 _ =
   let context = new_test_context () in
   let e = [%expr (2,3)] in
-  let expected =
-    [%expr let var0 = 2 in
-      let var1 = 3 in
-      (var0, var1)] in
+  let expected = [%expr (2,3)] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let tuple_test_2 _ =
   let context = new_test_context () in
   let e = [%expr ((2,3), 1)] in
-  let expected =
-    [%expr let var2 =
-             (let var0 = 2 in
-              let var1 = 3 in
-              (var0, var1)) in
-      let var3 = 1 in
-      (var2, var3)] in
+  let expected = [%expr let var0 = (2,3) in (var0, 1) ] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
@@ -63,7 +54,7 @@ let construct_test_2 _ =
 let construct_test_3 _ =
   let context = new_test_context () in
   let e = [%expr C 4] in
-  let expected = [%expr let var0 = 4 in C var0] in
+  let expected = [%expr C 4] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
@@ -72,15 +63,10 @@ let construct_test_4 _ =
   let e = [%expr C1 ('a', 5, C2 4)] in
   let expected =
     [%expr
-      let var4 =
-        let var1 = 'a' in
-        let var2 = 5 in
-        let var3 =
-          let var0 = 4 in
-          C2 var0
-        in (var1, var2, var3)
+      let var1 =
+        let var0 = C2 4 in ('a', 5, var0)
       in
-      C1 var4
+      C1 var1
     ]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
@@ -97,92 +83,86 @@ let let_test_2 _ =
   let context = new_test_context () in
   let e = [%expr let x = C 4 in x] in
   let expected =
-    [%expr let x = let var0 = 4 in C var0 in x] in
+    [%expr let x = C 4 in x] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let let_test_3 _ =
   let context = new_test_context () in
-  let e = [%expr let x = C 4 in ('a', x)] in
+  let e =
+    [%expr
+      let x = C (f 2) in (D 'a', x)
+    ]
+  in
   let expected =
     [%expr
       let x =
-        let var0 = 4 in
+        let var0 = f 2 in
         C var0
       in
-      let var1 = 'a' in
-      let var2 = x in
-      (var1, var2)] in
+      let var1 = D 'a' in
+      (var1, x)
+    ]
+  in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let let_test_4 _ =
   let context = new_test_context () in
   let e =
-    [%expr let x =
-             (let y = 3 in ('a', y)) in
-      C x] in
+    [%expr
+      let x =
+        let x = f 2 in
+        C x
+      in (D 'a', x)
+    ] in
   let expected =
     [%expr
       let x =
-        let y = 3 in
-        let var0 = 'a' in
-        let var1 = y in
-        (var0, var1)
+        let x = f 2 in
+        C x
       in
-      let var2 = x  in C var2
+      let var0 = D 'a' in
+      (var0, x)
     ] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let fun_test_1 _ =
   let context = new_test_context () in
-  let e =
-    [%expr fun x -> (x, 4)] in
-  let expected =
-    [%expr fun x -> (let var0 = x in let var1 = 4 in (var0, var1))]
-  in
+  let e = [%expr fun x -> (x, 4)] in
+  let expected = [%expr fun x -> (x, 4)] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let fun_test_2 _ =
   let context = new_test_context () in
-  let e =
-    [%expr fun x -> fun y -> (x,y)] in
-  let expected =
-    [%expr fun x -> fun y -> (let var0 = x in let var1 = y in (var0, var1))]
+  let e = [%expr fun x -> fun y -> (x,fun z -> y)] in
+  let expected = [%expr fun x -> fun y -> let var0 = fun z -> y in (x,var0)]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let fun_test_3 _ =
   let context = new_test_context () in
-  let e =
-    [%expr fun x y -> (x, y)] in
-  let expected =
-    [%expr fun x -> fun y -> (let var0 = x in let var1 = y in (var0, var1))]
-  in
+  let e = [%expr fun x y -> (x, y)] in
+  let expected = [%expr fun x -> fun y -> (x,y)] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let fun_test_4 _ =
   let context = new_test_context () in
-  let e =
-    [%expr fun ~l:x y -> (x, y)] in
-  let expected =
-    [%expr fun ~l:x -> fun y ->
-      (let var0 = x in let var1 = y in (var0, var1))]
-  in
+  let e = [%expr fun ~l:x y -> (x, y)] in
+  let expected = [%expr fun ~l:x y -> (x, y)] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let fun_test_5 _ =
   let context = new_test_context () in
   let e =
-    [%expr fun ?l:(x = 0) y -> (x, y)] in
+    [%expr fun ?l:(x = 0) y -> (x, f y)] in
   let expected =
-    [%expr fun ?l:(x = 0) y ->
-      let var0 = x in let var1 = y in (var0, var1)]
+    [%expr fun ?l:(x = 0) y -> let var0 = f y in (x, var0)]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
@@ -190,12 +170,10 @@ let fun_test_5 _ =
 let fun_test_6 _ =
   let context = new_test_context () in
   let e =
-    [%expr fun ?l:(x = (0, 1)) y -> (x, y)] in
+    [%expr fun ?l:(x = f (g 0)) y -> h x y] in
   let expected =
     [%expr fun
-      ?l:(x = let var0 = 0 in let var1 = 1 in (var0, var1)) ->
-      fun y ->
-        let var2 = x in let var3 = y in (var2, var3)]
+      ?l:(x = let var0 = g 0 in f var0) -> fun y -> h x y]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
@@ -203,9 +181,9 @@ let fun_test_6 _ =
 let function_test_1 _ =
   let context = new_test_context () in
   let e =
-    [%expr function x -> (x, 2)] in
+    [%expr function x -> x (x x)] in
   let expected =
-    [%expr function x -> let var0 = x in let var1 = 2 in (var0, var1)]
+    [%expr function x -> let var0 = x x in x var0]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
@@ -213,15 +191,18 @@ let function_test_1 _ =
 let function_test_2 _ =
   let context = new_test_context () in
   let e =
-    [%expr function
-        Foo x -> x + 1
-      | Bar x -> x - 1] in
+    [%expr
+      function
+      | Foo x -> x + 1 + y
+      | Bar x -> x - 1 - y
+    ]
+  in
   let expected =
-    [%expr function
-        Foo x -> let var0 = (+) in let var1 = x in let var2 = 1 in
-        var0 var1 var2
-      | Bar x -> let var3 = (-) in let var4 = x in let var5 = 1 in
-        var3 var4 var5]
+    [%expr
+      function
+      | Foo x -> let var0 = x + 1 in var0 + y
+      | Bar x -> let var1 = x - 1 in var1 - y
+    ]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
@@ -230,14 +211,12 @@ let function_test_3 _ =
   let context = new_test_context () in
   let e =
     [%expr function
-        x when (x > 0) -> x
+        x when (x/2 > 0) -> x
       | x -> 0] in
   let expected =
     [%expr function
-        x when (let var0 = (>) in
-                let var1 = x in
-                let var2 = 0 in
-                var0 var1 var2) -> x
+        x when (let var0 = x/2 in
+                var0 > 0) -> x
       | x -> 0]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
@@ -245,45 +224,31 @@ let function_test_3 _ =
 
 let apply_test_1 _ =
   let context = new_test_context () in
-  let e =
-    [%expr f 5] in
-  let expected =
-    [%expr
-      let var0 = f in
-      let var1 = 5 in
-      var0 var1]
-  in
+  let e = [%expr f 5] in
+  let expected = [%expr f 5] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let apply_test_2 _ =
   let context = new_test_context () in
-  let e =
-    [%expr (function x -> (x, 4)) 'a'] in
+  let e = [%expr (function x -> (x, 4)) 'a'] in
   let expected =
-    [%expr let var2 =
-             (function x -> let var0 = x in
-                let var1 = 4 in
-                (var0, var1)) in
-      let var3 = 'a' in
-      var2 var3]
+    [%expr
+      let var0 = function x -> (x, 4) in
+      var0 'a'
+    ]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let apply_test_3 _ =
   let context = new_test_context () in
-  let e =
-    [%expr (fun ~l:x y -> (x, y)) ~l:5 4] in
-  let expected = [%expr let var2 =
-                          (fun ~l:x ->
-                             fun y ->
-                               let var0 = x in
-                               let var1 = y in
-                               (var0, var1)) in
-    let var3 = 5 in
-    let var4 = 4 in
-    var2 ~l:var3 var4]
+  let e = [%expr (fun ~l:x y -> (x, y)) ~l:5 4] in
+  let expected =
+    [%expr
+      let var0 = (fun ~l:x y -> (x, y)) in
+      var0 ~l:5 4
+    ]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
@@ -293,13 +258,10 @@ let apply_test_4 _ =
   let e =
     [%expr (fun ?l:(x = 0) y -> (x, y)) ~l:1 2] in
   let expected =
-    [%expr let var2 =
-             (fun ?l:(x = 0) ->
-                fun y ->
-                  let var0 = x in let var1 = y in (var0, var1)) in
-      let var3 = 1 in
-      let var4 = 2 in
-      var2 ~l:var3 var4]
+    [%expr
+      let var0 = (fun ?l:(x = 0) y -> (x, y)) in
+      var0 ~l:1 2
+    ]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
@@ -321,42 +283,43 @@ let match_test_1 _ =
 let match_test_2 _ =
   let context = new_test_context () in
   let e =
-    [%expr match a with
-      | Foo x -> x + 1
-      | Bar x -> x] in
+    [%expr
+      match a with
+      | Foo x -> (x + 1) / 2
+      | Bar x -> x
+    ] in
   let expected =
     [%expr
       match a with
       | Foo x ->
-        let var0 = (+) in
-        let var1 = x in
-        let var2 = 1 in
-        var0 var1 var2
-      | Bar x -> x]
+        let var0 = x + 1 in
+        var0 / 2
+      | Bar x -> x
+    ]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let ifthenelse_test_1 _ =
   let context = new_test_context () in
-  let e = [%expr if true then 3 else 4] in
+  let e = [%expr if f x then 3 else 4] in
   let expected =
-    [%expr let var0 = true in if var0 then 3 else 4] in
+    [%expr let var0 = f x in if var0 then 3 else 4] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let ifthenelse_test_2 _ =
   let context = new_test_context () in
-  let e = [%expr if x then f 0 else 0] in
+  let e = [%expr if f 0 then (f 1)/2 else 4] in
   let expected =
-    [%expr let var0 = x in
-      if var0
-      then
-        (let var1 = f in
-         let var2 = 0 in
-         var1 var2)
+    [%expr
+      let var0 = f 0 in
+      if var0 then
+        let var1 = f 1 in
+        var1 / 2
       else
-        0]
+        4
+    ]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
@@ -364,7 +327,7 @@ let ifthenelse_test_2 _ =
 let field_test_1 _ =
   let context = new_test_context () in
   let e = [%expr x.f] in
-  let expected = [%expr let var0 = x in var0.f] in
+  let expected = [%expr x.f] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
@@ -372,20 +335,18 @@ let field_test_2 _ =
   let context = new_test_context () in
   let e = [%expr x.f1.f2] in
   let expected =
-    [%expr let var1 =
-             let var0 = x in var0.f1 in
-      var1.f2] in
+    [%expr
+      let var0 = x.f1 in
+      var0.f2
+    ]
+  in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
 let record_test_1 _ =
   let context = new_test_context () in
   let e = [%expr {foo = x; bar = y}] in
-  let expected =
-    [%expr let var0 = x in
-      let var1 = y in
-      {foo = var0; bar = var1}]
-  in
+  let expected = [%expr {foo = x; bar = y}] in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
@@ -394,23 +355,13 @@ let record_test_2 _ =
   let e = [%expr {foo = C 10; bar = x + 5}] in
   let expected =
     [%expr
-      let var4 =
-        let var0 = 10 in
-        C var0
-      in
-      let var5 =
-        let var1 = (+) in
-        let var2 = x in
-        let var3 = 5 in
-        var1 var2 var3
-      in
-      { foo = var4; bar = var5; }
+      let var0 = C 10 in
+      let var1 = x + 5 in
+      {foo = var0; bar = var1}
     ]
   in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
-
-(*TODO: test pexp_try*)
 
 let try_test_1 _ =
   let context = new_test_context () in
@@ -431,22 +382,25 @@ let try_test_1 _ =
 
 let try_test_2 _ =
   let context = new_test_context () in
-  let e = [%expr
-    try
-      (4,5)
-    with
-    | _ -> (6,7)] in
-  let expected = [%expr
-    try
-      let var0 = 4 in
-      let var1 = 5 in
-      (var0, var1)
-    with
-    | _ ->
-      let var2 = 6 in
-      let var3 = 7 in
-      (var2, var3)
-  ] in
+  let e =
+    [%expr
+      try
+        (x+y)/z
+      with
+      | _ -> a+b+c
+    ]
+  in
+  let expected =
+    [%expr
+      try
+        let var0 = x + y in
+        var0 / z
+      with
+      | _ ->
+        let var1 = a + b in
+        var1 + c
+    ]
+  in
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 

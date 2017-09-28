@@ -22,31 +22,37 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
     | None -> new_a_normalization_context ()
     | Some context -> context
   in
-  (** Given an expression, creates a let-binding for it.  The returned
-      expression is always a variable.  To ensure that this variable is defined,
-      the expression using the returned expression should be passed through the
-      returned function to attach the appropriate let-binding. *)
-  let let_bind (e : expression) : expression * (expression -> expression) =
-    let loc = e.pexp_loc in
-    let name = fresh_variable_name context.anc_fvc in
-    let replacement =
-      { pexp_loc = e.pexp_loc;
-        pexp_desc = Pexp_ident { txt = Longident.Lident name; loc = loc };
-        pexp_attributes = []
-      }
-    in
-    let pattern =
-      { ppat_desc = Ppat_var { txt = name; loc = loc };
-        ppat_loc = loc;
-        ppat_attributes = []
-      }
-    in
-    (replacement, fun e' -> [%expr let [%p pattern] = [%e e] in [%e e']])
+  (** Given an expression, replaces it with a simplified form.  If the
+      expression is already simple (a constant or a variable), nothing occurs:
+      the simple expression is simply returned together with the identity
+      function.  Otherwise, a fresh variable is created and returned as a
+      simple expression together with a function which will apply a let binding
+      to define that variable to the original input expression. *)
+  let simplify (e : expression) : expression * (expression -> expression) =
+    match e.pexp_desc with
+    | Pexp_ident _ -> (e, identity)
+    | Pexp_constant _ -> (e, identity)
+    | _ ->
+      let loc = e.pexp_loc in
+      let name = fresh_variable_name context.anc_fvc in
+      let replacement =
+        { pexp_loc = e.pexp_loc;
+          pexp_desc = Pexp_ident { txt = Longident.Lident name; loc = loc };
+          pexp_attributes = []
+        }
+      in
+      let pattern =
+        { ppat_desc = Ppat_var { txt = name; loc = loc };
+          ppat_loc = loc;
+          ppat_attributes = []
+        }
+      in
+      (replacement, fun e' -> [%expr let [%p pattern] = [%e e] in [%e e']])
   in
-  (** Let-binds a list as per let_bind. *)
-  let let_bind_list (es : expression list) :
+  (** Let-binds a list as per simplify. *)
+  let simplify_list (es : expression list) :
     expression list * (expression -> expression) =
-    let es', wrappers = es |> List.map let_bind |> List.split in
+    let es', wrappers = es |> List.map simplify |> List.split in
     (es',
      match wrappers with
      | [] -> identity
@@ -98,11 +104,11 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
                               translated_body)
       }
     | Pexp_apply (func_expr, argument_list) ->
-      let translated_func_expr, func_expr_wrap = let_bind @@ atrans func_expr in
+      let translated_func_expr, func_expr_wrap = simplify @@ atrans func_expr in
       let argument_labels, argument_exprs = List.split argument_list in
       let translated_argument_exprs = List.map atrans argument_exprs in
       let simplified_argument_exprs, argument_list_wrapper =
-        let_bind_list translated_argument_exprs
+        simplify_list translated_argument_exprs
       in
       let translated_argument_list =
         List.combine argument_labels simplified_argument_exprs
@@ -135,7 +141,7 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
       }
     | Pexp_tuple element_exprs ->
       let translated_exprs = List.map atrans element_exprs in
-      let simplified_exprs, wrapper = let_bind_list translated_exprs in
+      let simplified_exprs, wrapper = simplify_list translated_exprs in
       wrapper @@
       { expr with
         pexp_desc = Pexp_tuple simplified_exprs
@@ -146,7 +152,7 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
         | None -> expr
         | Some body ->
           let translated_body = atrans body in
-          let simplified_body, wrapper = let_bind translated_body in
+          let simplified_body, wrapper = simplify translated_body in
           wrapper @@
           { expr with
             pexp_desc = Pexp_construct(constructor_name, Some simplified_body)
@@ -158,7 +164,7 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
         | None -> expr
         | Some body ->
           let translated_body = atrans body in
-          let simplified_body, wrapper = let_bind translated_body in
+          let simplified_body, wrapper = simplify translated_body in
           wrapper @@
           { expr with
             pexp_desc = Pexp_variant(label, Some simplified_body)
@@ -171,7 +177,7 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
       let term_labels, term_exprs = List.split term_list in
       let translated_term_exprs = List.map atrans term_exprs in
       let simplified_term_exprs, term_expr_wrapper =
-        let_bind_list translated_term_exprs
+        simplify_list translated_term_exprs
       in
       let simplified_term_list =
         List.combine term_labels simplified_term_exprs
@@ -180,7 +186,7 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
         match translated_with_clause_prefix with
         | None -> (None, identity)
         | Some prefix ->
-          let simplified_prefix, wrap = let_bind prefix in
+          let simplified_prefix, wrap = simplify prefix in
           (Some simplified_prefix, wrap)
       in
       term_expr_wrapper @@
@@ -191,7 +197,7 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
       }
     | Pexp_field(body, label) ->
       let translated_body = atrans body in
-      let simplified_body, wrapper = let_bind translated_body in
+      let simplified_body, wrapper = simplify translated_body in
       wrapper @@
       { expr with
         pexp_desc = Pexp_field(simplified_body, label)
@@ -201,7 +207,7 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
     | Pexp_ifthenelse(condition_expr, then_expr, else_expr_option) ->
       let translated_condition_expr = atrans condition_expr in
       let simplified_condition_expr, condition_wrapper =
-        let_bind translated_condition_expr
+        simplify translated_condition_expr
       in
       condition_wrapper @@
       { expr with
