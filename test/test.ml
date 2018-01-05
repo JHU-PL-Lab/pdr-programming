@@ -4,7 +4,8 @@ open Jhupllib;;
 open OUnit2
 
 let all_tests =
-  [ Test_a_normalization.tests
+  [ "A-normalization" >::: Test_a_normalization.tests;
+    "Continuation_Transformer" >::: Test_continuation_transformer.tests;
   ];;
 
 let () =

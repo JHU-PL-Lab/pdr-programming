@@ -56,6 +56,21 @@ Library "a-normalization"
     ppx_deriving.std,
     pdr-programming.utils
 
+Library "continuation-extensions"
+  FindlibParent: pdr-programming
+  Path: src/continuation_extensions
+  Modules:
+    Continuation_fragment_constructors,
+    Continuation_fragment_types,
+    Continuation_transformer,
+    Continuation_transformer_monad
+  BuildDepends:
+    batteries,
+    jhupllib,
+    ppx_deriving.std,
+    pdr-programming.a-normalization,
+    pdr-programming.utils
+
 Executable "test"
   Path: test/
   MainIs: test.ml
@@ -78,11 +93,13 @@ Executable "sandbox"
   #NativeOpt+: -ppx src/ppx-pds-programming/ppx_pds_programming.native
   BuildDepends:
     batteries,
+    jhupllib,
     oUnit,
     ppx_deriving.std,
     ppx_tools,
     ppx_tools.metaquot,
-    pdr-programming.a-normalization
+    pdr-programming.a-normalization,
+    pdr-programming.continuation-extensions
 
 Test test
   Command: $test

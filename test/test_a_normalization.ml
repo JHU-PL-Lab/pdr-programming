@@ -404,7 +404,7 @@ let try_test_2 _ =
   assert_equal_ast expected (a_translate ~context:(Some context) e)
 ;;
 
-let tests = "a_translate" >::: [
+let tests = [
 
     "ident test" >:: ident_test;
     "constant test" >:: constant_test;
