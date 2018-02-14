@@ -740,6 +740,16 @@ let fragment_match
 ;;
 
 
+
+let fragment_tuple
+    (loc : Location.t) (attributes : attributes)
+    (gs : fragment_group list)
+  : fragment_group m =
+  raise @@ Utils.Not_yet_implemented "fragment_tuple"
+;;
+
+
+
 let fragment_construct
     (loc : Location.t) (attributes : attributes)
     (name : Longident.t Asttypes.loc) (go : fragment_group option)

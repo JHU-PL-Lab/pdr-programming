@@ -1,10 +1,12 @@
 open Continuation_fragment_types;;
 open Parsetree;;
+open Variable_utils;;
 
 type extension_predicate = extension -> bool
 
 type context =
   { fragment_context : Fragment_uid.context;
+    fresh_variable_context : fresh_variable_context;
     extension_predicate : extension_predicate
   }
 ;;
@@ -23,15 +25,22 @@ let mapM = Utils.mapM;;
 let sequence = Utils.sequence;;
 
 let run
-    (context : Fragment_uid.context)
+    (fragment_context : Fragment_uid.context)
+    (fresh_variable_context : fresh_variable_context)
     (predicate : extension -> bool)
     (x : 'a m)
   : 'a =
-  x { fragment_context = context; extension_predicate = predicate }
+  x { fragment_context = fragment_context;
+      fresh_variable_context = fresh_variable_context;
+      extension_predicate = predicate }
 ;;
 
-let get_context () : Fragment_uid.context m =
+let get_fragment_uid_context () : Fragment_uid.context m =
   fun (context : context) -> context.fragment_context
+;;
+
+let get_fresh_variable_context () : fresh_variable_context m =
+  fun (context : context) -> context.fresh_variable_context
 ;;
 
 let get_predicate () : extension_predicate m =
@@ -39,8 +48,13 @@ let get_predicate () : extension_predicate m =
 ;;
 
 let fresh_uid () : Fragment_uid.t m =
-  let%bind context = get_context () in
+  let%bind context = get_fragment_uid_context () in
   return @@ Fragment_uid.fresh ~context:context ()
+;;
+
+let fresh_var () : string m =
+  let%bind context = get_fresh_variable_context () in
+  return @@ fresh_variable_name context
 ;;
 
 let is_continuation_extension (ext : extension) : bool m =

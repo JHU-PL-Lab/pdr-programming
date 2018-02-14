@@ -68,6 +68,7 @@ let add_continuation_transform_test
         |> Continuation_transformer.do_transform
         |> Continuation_transformer_monad.run
           (Continuation_fragment_types.Fragment_uid.new_context ())
+          (Variable_utils.new_fresh_variable_context ~prefix:"var" ())
           (fun (name,payload) -> name.txt = "pop")
       in
       (* Now verify the expectations of the result.  We can do this by

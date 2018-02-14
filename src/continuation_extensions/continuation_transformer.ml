@@ -79,8 +79,9 @@ let rec do_transform (e : expression)
     fragment_match loc attrs g fcases
   | Parsetree.Pexp_try(_,_) ->
     raise @@ Utils.Not_yet_implemented("transform: Pexp_try")
-  | Parsetree.Pexp_tuple _ ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_tuple")
+  | Parsetree.Pexp_tuple(es) ->
+    let%bind gs = mapM do_transform @@ List.enum es in
+    fragment_tuple loc attrs @@ List.of_enum gs
   | Parsetree.Pexp_construct(name,eo) ->
     let%bind go =
       match eo with
