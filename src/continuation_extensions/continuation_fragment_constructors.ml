@@ -548,10 +548,8 @@ let fragment_match
   (* This is really just a generalization of the control flow technique used in
      the fragment_ifthenelse function.  It's combined with the binding of
      variables from patterns, but that's largely orthogonal. *)
-  raise @@ Utils.Not_yet_implemented "fragment_match"
-  (*
-  (* WORK IN PROGRESS *)
   let%bind match_uid = fresh_uid () in
+  (* Extract the pieces of each case *)
   let patterns = cs |> List.map (fun (p,_,_) -> p) in
   let guards =
     cs
@@ -567,6 +565,8 @@ let fragment_match
       )
   in
   let bodies = cs |> List.map (fun (_,_,match_body) -> match_body) in
+  (* Determine variable bindings so we can adjust the holes in the cases
+     based on which variables their patterns bind. *)
   let vars_bound_in_bodies =
     patterns
     |> List.map bound_pattern_vars_with_type
@@ -582,6 +582,10 @@ let fragment_match
     |> List.map (fun fragment -> fragment.fragment_extension_holes)
     |> List.concat
   in
+  (* We'll now create a fragment representing the match itself.  We'll leave the
+     match subject open -- the fragment will have an input hole there -- so we
+     can merge it with the actual subject fragment later.  This match fragment
+     will carry the patterns and entry fragments of each case. *)
   let match_fragment =
     { fragment_uid = match_uid;
       fragment_free_variables =
@@ -624,78 +628,115 @@ let fragment_match
       fragment_code =
         (fun input_expr_opt eval_holes_fns ext_holes_exprs ->
            let input_expr = assert_yes_input_expr match_uid input_expr_opt in
-
-        )
-    }
-  in
-  let ifthenelse_fragment =
-    { fragment_uid = ifthenelse_uid;
-      fragment_free_variables =
-        Var_set.union
-          g2_entry.fragment_free_variables g3_entry.fragment_free_variables;
-      fragment_input_hole = Some { inhd_loc = loc };
-      fragment_evaluation_holes = ifthenelse_eval_holes;
-      fragment_extension_holes = ifthenelse_ext_holes;
-      fragment_code =
-        (fun input_expr_opt eval_holes_fns ext_holes_exprs ->
-           let input_expr =
-             assert_yes_input_expr ifthenelse_uid input_expr_opt
+           (* We've been provided a bunch of values to fill the holes.  Above,
+              the holes for the match are described as a concatenation of the
+              holes for each case in order.  The caller will have provided fill
+              values in a list to match that list of holes.  Here, we'll split
+              the values list into a series of lists which correspond to the
+              holes for each case. *)
+           assert_evaluation_hole_function_count match_uid
+             (List.length match_eval_holes) eval_holes_fns;
+           assert_extension_hole_expression_count match_uid
+             (List.length match_ext_holes) ext_holes_exprs;
+           let carve_up
+               (type a) (type b) (in_list : a list) (template : b list list)
+             : a list list =
+             let rec loop in_list' template' =
+               match template' with
+               | [] -> []
+               | h::t ->
+                 let hl,tl = List.takedrop (List.length h) in_list' in
+                 hl::loop tl t
+             in
+             loop in_list template
            in
-           assert_evaluation_hole_function_count
-             ifthenelse_uid (List.length ifthenelse_eval_holes)
-             eval_holes_fns;
-           assert_extension_hole_expression_count
-             ifthenelse_uid (List.length ifthenelse_ext_holes)
-             ext_holes_exprs;
-           let then_eval_hole_fns, else_eval_hole_fns =
-             List.takedrop (List.length g2_entry.fragment_evaluation_holes)
-               eval_holes_fns
+           let eval_holes_fns_per_case =
+             carve_up eval_holes_fns @@
+             (List.map (fun fragment -> fragment.fragment_evaluation_holes)
+                body_entry_points)
            in
-           let then_ext_hole_exprs, else_ext_hole_exprs =
-             List.takedrop (List.length g2_entry.fragment_extension_holes)
-               ext_holes_exprs
+           let ext_holes_exprs_per_case =
+             carve_up ext_holes_exprs @@
+             (List.map (fun fragment -> fragment.fragment_extension_holes)
+                body_entry_points)
            in
-           let then_expr =
-             g2_entry.fragment_code
-               None then_eval_hole_fns then_ext_hole_exprs
+           (* Having separated the holes on a per-case basis, we can now
+              construct expressions for each case by providing the appropriate
+              fill values. *)
+           let case_exprs =
+             ext_holes_exprs_per_case
+             |> List.combine eval_holes_fns_per_case
+             |> List.combine body_entry_points
+             |> List.map
+               (fun (body_entry_point,(eval_holes_fns,ext_holes)) ->
+                  body_entry_point.fragment_code None eval_holes_fns ext_holes
+               )
            in
-           let else_expr =
-             g3_entry.fragment_code
-               None else_eval_hole_fns else_ext_hole_exprs
+           (* This gives us the case expressions we needed to build the match
+              expression. *)
+           let cases =
+             patterns
+             |> List.combine guards
+             |> List.combine case_exprs
+             |> List.map
+               (fun (case_expr, (guard, pattern)) ->
+                  { pc_lhs = pattern;
+                    pc_guard = guard;
+                    pc_rhs = case_expr
+                  }
+               )
            in
-           { pexp_desc =
-               Pexp_ifthenelse(input_expr, then_expr, Some else_expr);
+           { pexp_desc = Pexp_match(input_expr, cases);
              pexp_loc = loc;
              pexp_attributes = attributes
            }
         )
     }
   in
-  let ifthenelse_exits =
-    (* Include the exit points for both the then and else groups. *)
-    g2.fg_exits
-    |> Fragment_uid_set.union g3.fg_exits
-    (* But either group's entry matches its exit, then it was a singleton
+  (* Now we need to define the exit points for the overall match group we're
+     building. *)
+  let match_exits =
+    (* Include the exit points for each case. *)
+    bodies
+    |> List.map (fun body -> body.fg_exits)
+    |> List.fold_left Fragment_uid_set.union Fragment_uid_set.empty
+    (* But if any case's entry matches its exit, then that case was a singleton
        fragment group.  That means that its expression will treat this new
-       ifthenelse fragment as an exit.  So search through the exit UIDs and
-       replace occurrences of the then and else entry UIDs with the ifthenelse
-       fragment's UID. *)
+       match expression as its exit.  So search through the exit UIDs and replace
+       occurrences of any of these case's entry UIDs with the match fragment's
+       UID. *)
     |> Fragment_uid_set.map
-      (fun uid ->
-         if uid = g2.fg_entry || uid = g3.fg_entry then ifthenelse_uid else uid)
+      (let case_uids =
+         bodies
+         |> List.map (fun body -> body.fg_entry)
+         |> Fragment_uid_set.of_list
+       in
+       fun uid ->
+         if Fragment_uid_set.mem uid case_uids then match_uid else uid
+      )
   in
-  let ifthenelse_group =
+  (* Now we have the pieces to build the group for the match.  This group will
+     still be open on the input side as we still haven't connected the group
+     which defines the match subject. *)
+  let match_group =
     { fg_graph =
-        Fragment_uid_map.add ifthenelse_uid ifthenelse_fragment @@
-        merge_fragment_graphs
-          (Fragment_uid_map.remove g2.fg_entry g2.fg_graph)
-          (Fragment_uid_map.remove g3.fg_entry g3.fg_graph);
-      fg_entry = ifthenelse_uid;
-      fg_exits = ifthenelse_exits
+        (
+          Fragment_uid_map.add match_uid match_fragment @@
+          let case_groups_without_entry =
+            bodies
+            |> List.map (fun b -> Fragment_uid_map.remove b.fg_entry b.fg_graph)
+          in
+          List.fold_left
+            merge_fragment_graphs
+            Fragment_uid_map.empty
+            case_groups_without_entry
+        );
+      fg_entry = match_uid;
+      fg_exits = match_exits
     }
   in
-  return @@ connect_dataflow g1 ifthenelse_group
-*)
+  (* Now we can finally merge in the match subject. *)
+  return @@ connect_dataflow g match_group
 ;;
 
 

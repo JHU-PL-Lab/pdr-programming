@@ -284,6 +284,142 @@ add_continuation_transform_test
   }
 ;;
 
+add_continuation_transform_test
+  "pure single case match"
+  [%expr
+    match x with
+    | Foo -> 0
+  ]
+  { ctte_entry = 2;
+    ctte_exits = [2];
+    ctte_fragments =
+      [{ cttfe_id = 2; cttfe_has_input = false;
+         cttfe_outputs = [{ cttee_id = None; cttee_extension = false }];
+         cttfe_code =
+           [%expr
+             match x with
+             | Foo -> EVAL_HOLE("None", 0)
+           ]
+       }
+      ]
+  }
+;;
+
+add_continuation_transform_test
+  "pure two case match"
+  [%expr
+    match x with
+    | Foo -> 0
+    | Bar -> 1
+  ]
+  { ctte_entry = 3;
+    ctte_exits = [3];
+    ctte_fragments =
+      [{ cttfe_id = 3; cttfe_has_input = false;
+         cttfe_outputs = [{ cttee_id = None; cttee_extension = false };
+                          { cttee_id = None; cttee_extension = false };
+                         ];
+         cttfe_code =
+           [%expr
+             match x with
+             | Foo -> EVAL_HOLE("None", 0)
+             | Bar -> EVAL_HOLE("None", 1)
+           ]
+       }
+      ]
+  }
+;;
+
+add_continuation_transform_test
+  "immediately impure single case match"
+  [%expr
+    match x with
+    | Foo -> [%pop]
+  ]
+  { ctte_entry = 2;
+    ctte_exits = [2];
+    ctte_fragments =
+      [{ cttfe_id = 2; cttfe_has_input = false;
+         cttfe_outputs = [{ cttee_id = None; cttee_extension = true }];
+         cttfe_code =
+           [%expr
+             match x with
+             | Foo -> EXT_HOLE "None"
+           ]
+       }
+      ]
+  }
+;;
+
+add_continuation_transform_test
+  "indirectly impure single case match"
+  [%expr
+    match x with
+    | Foo ->
+      let x = 4 in
+      let y = [%pop] in
+      x
+  ]
+  { ctte_entry = 6;
+    ctte_exits = [4];
+    ctte_fragments =
+      [{ cttfe_id = 4; cttfe_has_input = true;
+         cttfe_outputs = [{ cttee_id = None; cttee_extension = false }];
+         cttfe_code =
+           [%expr
+             let y = _INPUT in
+             EVAL_HOLE("None", x)
+           ]
+       };
+       { cttfe_id = 6; cttfe_has_input = false;
+         cttfe_outputs = [{ cttee_id = Some 4; cttee_extension = true }];
+         cttfe_code =
+           [%expr
+             match x with
+             | Foo -> let x = 4 in EXT_HOLE "4"
+           ]
+       }
+      ]
+  }
+;;
+
+add_continuation_transform_test
+  "indirectly impure two case match"
+  [%expr
+    match x with
+    | Foo ->
+      let x = 4 in
+      let y = [%pop] in
+      x
+    | Bar ->
+      [%pop]
+  ]
+  { ctte_entry = 7;
+    ctte_exits = [4; 7];
+    ctte_fragments =
+      [{ cttfe_id = 4; cttfe_has_input = true;
+         cttfe_outputs = [{ cttee_id = None; cttee_extension = false }];
+         cttfe_code =
+           [%expr
+             let y = _INPUT in
+             EVAL_HOLE("None", x)
+           ]
+       };
+       { cttfe_id = 7; cttfe_has_input = false;
+         cttfe_outputs = [{ cttee_id = Some 4; cttee_extension = true };
+                          { cttee_id = None; cttee_extension = true }
+                         ];
+         cttfe_code =
+           [%expr
+             match x with
+             | Foo -> let x = 4 in EXT_HOLE "4"
+             | Bar -> EXT_HOLE "None"
+           ]
+       };
+      ]
+  }
+;;
+
 (* ****************************************************************************
    Wiring and cleanup
 *)
