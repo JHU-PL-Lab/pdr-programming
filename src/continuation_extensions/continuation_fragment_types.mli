@@ -115,6 +115,8 @@ type extension_hole_data =
 type fragment =
   { (** The UID of this fragment. *)
     fragment_uid: Fragment_uid.t;
+    (** A location to attribute to this fragment. *)
+    fragment_loc: Location.t;
     (** The set of variables which are free in this fragment and must be
         supplied by the previously-executed fragment. *)
     fragment_free_variables: Var_set.t;
@@ -151,6 +153,7 @@ module Fragment_uid_map : Map.S with type key = Fragment_uid.t;;
 
 type fragment_group =
   { fg_graph : fragment Fragment_uid_map.t;
+    fg_loc : Location.t;
     fg_entry : Fragment_uid.t;
     fg_exits : Fragment_uid_set.t
   }

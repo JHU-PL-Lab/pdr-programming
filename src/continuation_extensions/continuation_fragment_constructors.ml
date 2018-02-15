@@ -26,6 +26,12 @@ invariants:
     an input hole.
 *)
 
+(** Some of the fragment constructors have constraints on the types of AST they
+    can construct.  Pattern guards, for instance, must be pure expressions.  If
+    a fragment constructor is passed an invalid expression, this exception is
+    raised. *)
+exception Unfragmentable_ast of string;;
+
 (*******************************************************************************
    Stitching assertions.  Used to verify form of inputs at stitching time.
 *)
@@ -150,14 +156,20 @@ let pure_fragment_group_to_expression (g : fragment_group) : expression =
       "attempted to convert impure fragment group into expression"
 ;;
 
-(** Creates a fragment group from a pure expression. *)
-let pure_singleton_fragment_group
+(** Creates a fragment from a pure expression. *)
+let pure_fragment
+    ?uid:(uid=None)
     (e : expression)
     (free_vars : Var_set.t)
-  : fragment_group m =
-  let%bind uid = fresh_uid () in
-  let fragment =
+  : fragment m =
+  let%bind uid =
+    match uid with
+    | None -> fresh_uid ()
+    | Some uid -> return uid
+  in
+  return
     { fragment_uid = uid;
+      fragment_loc = e.pexp_loc;
       fragment_free_variables = free_vars;
       fragment_input_hole = None;
       fragment_evaluation_holes =
@@ -177,9 +189,19 @@ let pure_singleton_fragment_group
            f e
         )
     }
-  in
+;;
+
+(** Creates a fragment group from a pure expression. *)
+let pure_singleton_fragment_group
+    ?uid:(uid=None)
+    (e : expression)
+    (free_vars : Var_set.t)
+  : fragment_group m =
+  let%bind fragment = pure_fragment ~uid:uid e free_vars in
+  let uid = fragment.fragment_uid in
   return
     { fg_graph = Fragment_uid_map.singleton uid fragment;
+      fg_loc = e.pexp_loc;
       fg_entry = uid;
       fg_exits = Fragment_uid_set.singleton uid;
     }
@@ -224,6 +246,7 @@ let replace_entry_fragment (fragment : fragment) (group : fragment_group)
       )
   in
   { fg_graph = graph;
+    fg_loc = group.fg_loc;
     fg_entry = fragment.fragment_uid;
     fg_exits = exits;
   }
@@ -282,7 +305,8 @@ let rewrite_exit_points_to (uid : Fragment_uid.t) (g : fragment_group) =
    flow.  If the first group is pure, then it will be incorporated into the
    entry fragment of the second group entirely.
 *)
-let connect_dataflow (g1 : fragment_group) (g2 : fragment_group)
+let connect_dataflow
+    (loc : Location.t) (g1 : fragment_group) (g2 : fragment_group)
   : fragment_group =
   if is_pure g1 then
     let f1 = get_pure_fragment g1 in
@@ -293,6 +317,7 @@ let connect_dataflow (g1 : fragment_group) (g2 : fragment_group)
     let uid = old_entry.fragment_uid in
     let new_entry =
       { fragment_uid = uid;
+        fragment_loc = loc;
         fragment_free_variables =
           Var_set.union
             f1.fragment_free_variables old_entry.fragment_free_variables;
@@ -318,28 +343,112 @@ let connect_dataflow (g1 : fragment_group) (g2 : fragment_group)
       }
     in
     { fg_graph = Fragment_uid_map.add uid new_entry g2.fg_graph;
+      fg_loc = loc;
       fg_entry = g2.fg_entry;
       fg_exits = g2.fg_exits;
     }
   else
     let g1' = rewrite_exit_points_to g2.fg_entry g1 in
     { fg_graph = merge_fragment_graphs g1'.fg_graph g2.fg_graph;
+      fg_loc = loc;
       fg_entry = g1'.fg_entry;
       fg_exits = g2.fg_exits
     }
 ;;
 
+(* Sequentializes the execution of multiple groups.  If all groups are pure,
+   this is as simple as generating expressions for each group and passing them
+   to a final creation routine.  Impure groups are addressed by let-binding the
+   results of execution to variables and creating a chain of fragments which
+   pass along the results; the final fragment in the chain is constructed by
+   passing variable expressions representing the results of the fragments into
+   the final creation routine.  The resulting fragment group will evaluate each
+   of the input groups in the same order that they are provided in the input
+   list.  None of the input groups are permitted to have an input hole.
+*)
+let rec sequentialize_fragment_groups
+    (loc : Location.t)
+    (gs : fragment_group list)
+    (create : expression list -> expression)
+  : fragment_group m =
+  (* We want to fold over the expressions, building up both the fragment group
+     that evaluates gs as well as the expression that produces the tuple.
+     Sadly, we can't do this as it means we wouldn't create the base case (the
+     target expression) until after we fold.  So we'll have to do this in a few
+     steps:
+      1. Loop over the gs to find the last impure one.  All of the expressions
+         after that can be given to the tuple verbatim.
+      2. Pick fresh variable names for the let bindings we will build for all of
+         the other expressions.
+      3. Build the tuple using the fresh variables and pure expressions.  Use it
+         to construct a pure exit fragment to use as the base case.
+      4. Finally, loop over the other groups and build up the necessary
+         let-bindings.
+  *)
+  (* Separate the suffix of gs which is pure into its own list. *)
+  let pure_gs, other_gs = List.span is_pure @@ List.rev gs in
+  (* Get the pure expressions from that suffix; put them in correct order. *)
+  let pure_exprs =
+    List.rev @@ List.map pure_fragment_group_to_expression pure_gs
+  in
+  (* Pick variable names for the other gs. *)
+  let%bind other_varnames_enum =
+    other_gs
+    |> List.enum
+    |> mapM (fun _ -> fresh_var ())
+  in
+  let other_varnames = List.of_enum other_varnames_enum in
+  (* Build up appropriate expressions for the creator function. *)
+  let exprs =
+    other_varnames
+    |> List.combine other_gs
+    |> List.fold_left
+      (fun lst (g,other_varname) ->
+         let expr =
+           { pexp_desc =
+               Pexp_ident(
+                 { txt = Longident.Lident other_varname;
+                   loc = g.fg_loc
+                 });
+             pexp_loc = g.fg_loc;
+             pexp_attributes = [];
+           }
+         in
+         expr::lst
+      ) pure_exprs
+  in
+  (* Create the base fragment group. *)
+  let base_expr = create exprs in
+  let%bind base_group =
+    pure_singleton_fragment_group
+      base_expr (Variable_utils.free_expr_vars base_expr)
+  in
+  (* Now loop over the remaining groups, creating let bindings for each one so
+     as to close the fragment we just created. *)
+  let%bind result_group =
+    other_gs
+    |> List.combine other_varnames
+    |> List.fold_left
+      (fun groupM (other_varname, other_g) ->
+         let%bind group = groupM in
+         let loc = other_g.fg_loc in
+         let varp = { ppat_desc = Ppat_var { txt = other_varname; loc = loc };
+                      ppat_loc = loc;
+                      ppat_attributes = []
+                    }
+         in
+         fragment_let
+           other_g.fg_loc [] Nonrecursive [(varp, other_g, [], loc)] group
+      )
+      (return base_group)
+  in
+  return result_group
+
 (*******************************************************************************
-   Constructors and related definitions.
+   Constructors.
 *)
 
-(** Some of the fragment constructors have constraints on the types of AST they
-    can construct.  Pattern guards, for instance, must be pure expressions.  If
-    a fragment constructor is passed an invalid expression, this exception is
-    raised. *)
-exception Unfragmentable_ast of string;;
-
-let fragment_ident
+and fragment_ident
     (loc : Location.t) (attributes : attributes)
     (x : Longident.t Asttypes.loc)
   : fragment_group m =
@@ -350,9 +459,8 @@ let fragment_ident
     }
   in
   pure_singleton_fragment_group e @@ Var_set.singleton x.txt
-;;
 
-let fragment_constant
+and fragment_constant
     (loc : Location.t) (attributes : attributes)
     (c : constant)
   : fragment_group m =
@@ -363,9 +471,10 @@ let fragment_constant
     }
   in
   pure_singleton_fragment_group e Var_set.empty
-;;
 
-let fragment_let
+
+
+and fragment_let
     (loc : Location.t) (attributes : attributes)
     (rec_flag : rec_flag)
     (bindings : (pattern * fragment_group * attributes * Location.t) list)
@@ -394,6 +503,7 @@ let fragment_let
     in
     let fragment =
       { fragment_uid = uid;
+        fragment_loc = loc;
         fragment_free_variables =
           Var_set.union body_entry.fragment_free_variables @@
           Var_set.diff
@@ -487,6 +597,7 @@ let fragment_let
       let bound_by_pattern = bound_pattern_vars_with_type binding_pattern in
       let let_fragment =
         { fragment_uid = let_uid;
+          fragment_loc = loc;
           fragment_free_variables =
             Var_set.diff body_entry.fragment_free_variables @@
             Var_set.of_enum @@ Var_map.keys bound_by_pattern;
@@ -534,13 +645,13 @@ let fragment_let
         }
       in
       let let_fragment_group = replace_entry_fragment let_fragment body in
-      return @@ connect_dataflow binding_fragment_group let_fragment_group
+      return @@ connect_dataflow loc binding_fragment_group let_fragment_group
     end
-;;
 
 
 
-let fragment_match
+
+and fragment_match
     (loc : Location.t) (attributes : attributes)
     (g : fragment_group)
     (cs : (pattern * fragment_group option * fragment_group) list)
@@ -588,6 +699,7 @@ let fragment_match
      will carry the patterns and entry fragments of each case. *)
   let match_fragment =
     { fragment_uid = match_uid;
+      fragment_loc = loc;
       fragment_free_variables =
         Var_set.unions @@
         List.map2
@@ -731,26 +843,33 @@ let fragment_match
             Fragment_uid_map.empty
             case_groups_without_entry
         );
+      fg_loc = loc;
       fg_entry = match_uid;
       fg_exits = match_exits
     }
   in
   (* Now we can finally merge in the match subject. *)
-  return @@ connect_dataflow g match_group
-;;
+  return @@ connect_dataflow loc g match_group
 
 
 
-let fragment_tuple
+
+and fragment_tuple
     (loc : Location.t) (attributes : attributes)
     (gs : fragment_group list)
   : fragment_group m =
-  raise @@ Utils.Not_yet_implemented "fragment_tuple"
-;;
+  sequentialize_fragment_groups loc gs
+    (fun es ->
+       { pexp_desc = Pexp_tuple es;
+         pexp_loc = loc;
+         pexp_attributes = attributes;
+       }
+    )
 
 
 
-let fragment_construct
+
+and fragment_construct
     (loc : Location.t) (attributes : attributes)
     (name : Longident.t Asttypes.loc) (go : fragment_group option)
   : fragment_group m =
@@ -767,6 +886,7 @@ let fragment_construct
     let%bind uid = fresh_uid () in
     let constructor_fragment =
       { fragment_uid = uid;
+        fragment_loc = loc;
         fragment_free_variables = Var_set.empty;
         fragment_input_hole = Some { inhd_loc = loc };
         fragment_evaluation_holes =
@@ -795,16 +915,17 @@ let fragment_construct
     in
     let constructor_group =
       { fg_graph = Fragment_uid_map.singleton uid constructor_fragment;
+        fg_loc = loc;
         fg_entry = uid;
         fg_exits = Fragment_uid_set.singleton uid;
       }
     in
-    return @@ connect_dataflow g constructor_group
-;;
+    return @@ connect_dataflow loc g constructor_group
 
 
 
-let fragment_ifthenelse
+
+and fragment_ifthenelse
     (loc : Location.t) (attributes : attributes)
     (g1 : fragment_group) (g2 : fragment_group) (g3 : fragment_group)
   : fragment_group m =
@@ -831,6 +952,7 @@ let fragment_ifthenelse
   in
   let ifthenelse_fragment =
     { fragment_uid = ifthenelse_uid;
+      fragment_loc = loc;
       fragment_free_variables =
         Var_set.union
           g2_entry.fragment_free_variables g3_entry.fragment_free_variables;
@@ -890,16 +1012,17 @@ let fragment_ifthenelse
         merge_fragment_graphs
           (Fragment_uid_map.remove g2.fg_entry g2.fg_graph)
           (Fragment_uid_map.remove g3.fg_entry g3.fg_graph);
+      fg_loc = loc;
       fg_entry = ifthenelse_uid;
       fg_exits = ifthenelse_exits
     }
   in
-  return @@ connect_dataflow g1 ifthenelse_group
-;;
+  return @@ connect_dataflow loc g1 ifthenelse_group
 
 
 
-let fragment_extension
+
+and fragment_extension
     (loc : Location.t) (attributes : attributes) (ext : extension)
   : fragment_group m =
   let%bind is_continuation = is_continuation_extension ext in
@@ -907,6 +1030,7 @@ let fragment_extension
     let%bind uid = fresh_uid () in
     let fragment =
       { fragment_uid = uid;
+        fragment_loc = loc;
         fragment_free_variables = Var_set.empty;
         fragment_input_hole = None;
         fragment_evaluation_holes = [];
@@ -930,6 +1054,7 @@ let fragment_extension
     in
     return
       { fg_graph = Fragment_uid_map.singleton uid fragment;
+        fg_loc = loc;
         fg_entry = uid;
         fg_exits = Fragment_uid_set.singleton uid
       }
