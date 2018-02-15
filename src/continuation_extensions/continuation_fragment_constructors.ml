@@ -650,6 +650,22 @@ and fragment_let
 
 
 
+and fragment_apply
+    (loc : Location.t) (attributes : attributes)
+    (g_fn : fragment_group) (args : (Asttypes.arg_label * fragment_group) list)
+  : fragment_group m =
+  let labels,g_args = List.split args in
+  sequentialize_fragment_groups loc (g_fn::g_args)
+    (fun es ->
+       let e_fn = List.hd es in
+       let e_args = List.tl es in
+       let args = List.combine labels e_args in
+       { pexp_desc = Pexp_apply(e_fn,args);
+         pexp_loc = loc;
+         pexp_attributes = attributes;
+       }
+    )
+
 
 and fragment_match
     (loc : Location.t) (attributes : attributes)

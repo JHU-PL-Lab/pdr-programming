@@ -476,6 +476,75 @@ add_continuation_transform_test
   }
 ;;
 
+add_continuation_transform_test
+  "pure function call"
+  [%expr f x]
+  { ctte_entry = 2;
+    ctte_exits = [2];
+    ctte_fragments =
+      [{ cttfe_id = 2; cttfe_has_input = false;
+         cttfe_outputs = [{cttee_id = None; cttee_extension = false }];
+         cttfe_code =
+           [%expr EVAL_HOLE("None", f x) ]
+       }
+      ]
+  }
+;;
+
+add_continuation_transform_test
+  "pure multi-argument function call"
+  [%expr f x y]
+  { ctte_entry = 3;
+    ctte_exits = [3];
+    ctte_fragments =
+      [{ cttfe_id = 3; cttfe_has_input = false;
+         cttfe_outputs = [{cttee_id = None; cttee_extension = false }];
+         cttfe_code =
+           [%expr EVAL_HOLE("None", f x y) ]
+       }
+      ]
+  }
+;;
+
+add_continuation_transform_test
+  "call impure function"
+  [%expr [%pop] x]
+  { ctte_entry = 0; ctte_exits = [3];
+    ctte_fragments =
+      [{ cttfe_id = 0; cttfe_has_input = false;
+         cttfe_outputs =
+           [{ cttee_id = (Some 3); cttee_extension = true }];
+         cttfe_code = [%expr EXT_HOLE "3" ]
+       };
+       { cttfe_id = 3; cttfe_has_input = true;
+         cttfe_outputs =
+           [{ cttee_id = None; cttee_extension = false }];
+         cttfe_code = [%expr let var0 = _INPUT  in EVAL_HOLE ("None", (var0 x))]
+       }
+      ]
+  }
+;;
+
+add_continuation_transform_test
+  "call function with impure argument"
+  [%expr f [%pop]]
+  { ctte_entry = 4; ctte_exits = [3];
+    ctte_fragments =
+      [{ cttfe_id = 3; cttfe_has_input = true;
+         cttfe_outputs =
+           [{ cttee_id = None; cttee_extension = false }];
+         cttfe_code =
+           [%expr let var0 = _INPUT  in EVAL_HOLE ("None", (var1 var0)) ]
+       };
+       { cttfe_id = 4; cttfe_has_input = false;
+         cttfe_outputs =
+           [{ cttee_id = (Some 3); cttee_extension = true }];
+         cttfe_code = [%expr let var1 = f  in EXT_HOLE "3" ]
+       }
+      ]
+  }
+;;
+
 (* ****************************************************************************
    Wiring and cleanup
 *)

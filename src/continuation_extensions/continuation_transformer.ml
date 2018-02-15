@@ -69,8 +69,12 @@ let rec do_transform (e : expression)
     raise @@ Utils.Not_yet_implemented("transform: Pexp_function")
   | Parsetree.Pexp_fun(_,_,_,_) ->
     raise @@ Utils.Not_yet_implemented("transform: Pexp_fun")
-  | Parsetree.Pexp_apply(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_apply")
+  | Parsetree.Pexp_apply(fn,args) ->
+    let%bind g_fn = do_transform fn in
+    let labels,e_args = List.split args in
+    let%bind g_args = mapM do_transform @@ List.enum e_args in
+    let args' = List.combine labels @@ List.of_enum g_args in
+    fragment_apply loc attrs g_fn args'
   | Parsetree.Pexp_match(e,cases) ->
     let%bind g = do_transform e in
     let%bind fcases =
