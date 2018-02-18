@@ -519,7 +519,7 @@ add_continuation_transform_test
        { cttfe_id = 3; cttfe_has_input = true;
          cttfe_outputs =
            [{ cttee_id = None; cttee_extension = false }];
-         cttfe_code = [%expr let var0 = _INPUT  in EVAL_HOLE ("None", (var0 x))]
+         cttfe_code = [%expr let var0 = _INPUT in EVAL_HOLE ("None", (var0 x))]
        }
       ]
   }
@@ -534,7 +534,7 @@ add_continuation_transform_test
          cttfe_outputs =
            [{ cttee_id = None; cttee_extension = false }];
          cttfe_code =
-           [%expr let var0 = _INPUT  in EVAL_HOLE ("None", (var1 var0)) ]
+           [%expr let var0 = _INPUT in EVAL_HOLE ("None", (var1 var0)) ]
        };
        { cttfe_id = 4; cttfe_has_input = false;
          cttfe_outputs =
