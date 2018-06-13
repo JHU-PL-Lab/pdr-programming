@@ -4,7 +4,7 @@ open Jhupllib;;
 open Asttypes;;
 open Parsetree;;
 
-open Variable_utils;;
+open Pdr_programming_utils.Variable_utils;;
 
 type a_normalization_context =
   { anc_fvc : fresh_variable_context
@@ -22,12 +22,12 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
     | None -> new_a_normalization_context ()
     | Some context -> context
   in
-  (** Given an expression, replaces it with a simplified form.  If the
-      expression is already simple (a constant or a variable), nothing occurs:
-      the simple expression is simply returned together with the identity
-      function.  Otherwise, a fresh variable is created and returned as a
-      simple expression together with a function which will apply a let binding
-      to define that variable to the original input expression. *)
+  (* Given an expression, replaces it with a simplified form.  If the
+     expression is already simple (a constant or a variable), nothing occurs:
+     the simple expression is simply returned together with the identity
+     function.  Otherwise, a fresh variable is created and returned as a
+     simple expression together with a function which will apply a let binding
+     to define that variable to the original input expression. *)
   let simplify (e : expression) : expression * (expression -> expression) =
     match e.pexp_desc with
     | Pexp_ident _ -> (e, identity)
@@ -49,7 +49,7 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
       in
       (replacement, fun e' -> [%expr let [%p pattern] = [%e e] in [%e e']])
   in
-  (** Let-binds a list as per simplify. *)
+  (* Let-binds a list as per simplify. *)
   let simplify_list (es : expression list) :
     expression list * (expression -> expression) =
     let es', wrappers = es |> List.map simplify |> List.split in
@@ -59,8 +59,8 @@ let a_translate ?context:(context=None) (expr : expression) : expression =
      | h::t -> List.fold_left (%) h t
     )
   in
-  (** The primary A-translation function, defined here to capture the
-      A-translation context. *)
+  (* The primary A-translation function, defined here to capture the
+     A-translation context. *)
   let rec atrans expr =
     match expr.pexp_desc with
     | Pexp_ident _ -> expr

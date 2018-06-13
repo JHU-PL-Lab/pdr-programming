@@ -1,4 +1,4 @@
-open A_normalizer;;
+open Pdr_programming_a_normalization.A_normalizer;;
 open OUnit2;;
 
 let new_test_context () =

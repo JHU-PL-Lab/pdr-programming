@@ -14,8 +14,6 @@ let new_fresh_variable_context ?prefix:(prefix="__var_") () =
     fvc_prefix = prefix }
 ;;
 
-let fresh_variable_name_counter = ref 0;;
-
 let fresh_variable_name fvc =
   let n = !(fvc.fvc_counter) in
   fvc.fvc_counter := n + 1;
@@ -64,7 +62,7 @@ struct
   include Pp_utils.Map_pp(Impl)(Longident_value);;
   let disjoint_union (a : 'a t) (b : 'a t) : 'a t =
     merge
-      (fun k value1o value2o ->
+      (fun _ value1o value2o ->
          match value1o, value2o with
          | Some value1, None -> Some value1
          | None, Some value2 -> Some value2
@@ -80,7 +78,7 @@ struct
   ;;
   let union_left (a : 'a t) (b : 'a t) : 'a t =
     merge
-      (fun k value1o value2o ->
+      (fun _ value1o value2o ->
          match value1o, value2o with
          | Some value1, _ -> Some value1
          | None, Some value2 -> Some value2
@@ -136,7 +134,7 @@ let rec bound_pattern_vars_with_type
          | None, None -> None
          | Some value1, Some value2 ->
            if value1 = value2 then Some value1 else
-           raise @@ Multiply_bound_variable k
+             raise @@ Multiply_bound_variable k
       )
       a b
   in

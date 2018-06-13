@@ -1,0 +1,24 @@
+opam-version: "1.2"
+name: "pdr-programming"
+version: "0.0.0+dev"
+maintainer: "Zachary Palmer <zep_opam@bahj.com>"
+authors: [ "Zachary Palmer <zep_opam@bahj.com>" "Charlotte Raty" ]
+license: "Apache"
+homepage: "https://github.com/JHU-PL-Lab/pdr-programming"
+dev-repo: "https://github.com/JHU-PL-Lab/pdr-programming.git"
+bug-reports: "https://github.com/JHU-PL-Lab/pdr-programming/issues"
+build: [ "jbuilder" "build" "-p" name "-j" jobs ]
+build-test: [ "jbuilder" "runtest" "-p" name "-j" jobs ]
+depends: [
+  "base-threads"
+  "batteries"
+  "jbuilder" {build & >= "1.0+beta17"}
+  "jhupllib" {>= "0.1.1"}
+  "ocaml-monadic"
+  "ocamlbuild" {build}
+  "ocamlfind" {build}
+  "ounit" {build}
+  "ppx_deriving" {>= "3.2"}
+  "ppx_deriving_yojson" {>= "2.1"}
+  "yojson"
+]

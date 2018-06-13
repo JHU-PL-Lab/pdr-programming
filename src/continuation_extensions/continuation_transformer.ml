@@ -1,13 +1,10 @@
 open Batteries;;
 open Jhupllib;;
 
-open A_normalizer;;
-open Asttypes;;
 open Continuation_fragment_constructors;;
 open Continuation_fragment_types;;
 open Continuation_transformer_monad;;
 open Parsetree;;
-open Variable_utils;;
 
 (* FIXME:
    The current state of the below code is a mess and shouldn't really be used.

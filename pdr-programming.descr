@@ -1,0 +1,3 @@
+A DSL for pushdown reachability queries.
+
+This library provides a domain-specific language for pushdown reachability queries.  The programmer uses the DSL to express families of paths which exist in the automaton and the library translates these expressions into code which uses the pds-reachability library to answer those queries.

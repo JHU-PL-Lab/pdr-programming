@@ -4,7 +4,7 @@
 
 open Continuation_fragment_types;;
 open Parsetree;;
-open Variable_utils;;
+open Pdr_programming_utils.Variable_utils;;
 
 type extension_predicate = extension -> bool
 

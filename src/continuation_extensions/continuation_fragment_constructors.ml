@@ -6,12 +6,11 @@
 open Batteries;;
 open Jhupllib;;
 
-open A_normalizer;;
 open Asttypes;;
 open Continuation_fragment_types;;
 open Continuation_transformer_monad;;
 open Parsetree;;
-open Variable_utils;;
+open Pdr_programming_utils.Variable_utils;;
 
 (* #############################################################################
    TODO:
@@ -235,7 +234,7 @@ let merge_fragment_graphs
     (graph2 : fragment Fragment_uid_map.t)
   : fragment Fragment_uid_map.t =
   Fragment_uid_map.merge
-    (fun uid value1o value2o ->
+    (fun _ value1o value2o ->
        match value1o, value2o with
        | Some value1, None -> Some value1
        | None, Some value2 -> Some value2
@@ -442,7 +441,7 @@ let rec sequentialize_fragment_groups
   let base_expr = create exprs in
   let%bind base_group =
     pure_singleton_fragment_group
-      base_expr (Variable_utils.free_expr_vars base_expr)
+      base_expr (free_expr_vars base_expr)
   in
   (* Now loop over the remaining groups, creating let bindings for each one so
      as to close the fragment we just created. *)
@@ -452,9 +451,12 @@ let rec sequentialize_fragment_groups
     |> List.fold_left
       (fun groupM (other_varname, other_g) ->
          let%bind group = groupM in
-         let loc = other_g.fg_loc in
-         let varp = { ppat_desc = Ppat_var { txt = other_varname; loc = loc };
-                      ppat_loc = loc;
+         let other_loc = other_g.fg_loc in
+         let varp = { ppat_desc = Ppat_var
+                          { txt = other_varname;
+                            loc = other_loc
+                          };
+                      ppat_loc = other_loc;
                       ppat_attributes = []
                     }
          in

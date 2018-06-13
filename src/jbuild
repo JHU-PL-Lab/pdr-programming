@@ -1,0 +1,13 @@
+(library
+  ( (name pdr_programming)
+    (public_name pdr-programming)
+    (synopsis "A tool for expressing pushdown reachability analyses via a DSL.")
+    (libraries
+      ( batteries
+        pdr-programming.utils
+        pdr-programming.a-normalization
+        pdr-programming.continuation-extensions
+      )
+    )
+  )
+)
