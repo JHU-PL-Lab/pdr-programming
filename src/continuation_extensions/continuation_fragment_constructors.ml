@@ -13,6 +13,27 @@ open Continuation_transformer_monad;;
 open Parsetree;;
 open Variable_utils;;
 
+(* #############################################################################
+   TODO:
+   We need to adjust how variable bindings are handled.  Presently, we're
+   tracking sets of variables which are free as well as dictionaries of bound
+   variables.  Putting these back together after fragment group construction is
+   quite difficult as we don't have information about the *circumstances* under
+   which those variables were bound.  Instead, consider the following:
+   * Each fragment maintains a set of free variables (like it does now).
+   * Each fragment also maintains a set of variables bound in them by other
+     fragments.  For instance, if Fragment 1 has x free and Fragment 2 is later
+     constructed around Fragment 1, then Fragment 1 is adjusted to remove x from
+     the free set but to add a mapping indicating that x was bound by Fragment 2
+     (storing type information if it is available).
+   This strategy should make it possible to do what we need to do: understand
+   what information needs to be transmitted by the generated continuations
+   between each fragment.  Note that it is possible for the same variable name
+   to appear twice in a single closure (due to how control flow is linearized
+   and scope is no longer preserved), so fresh names may need to be generated to
+   represent these values.
+   ########################################################################## *)
+
 (*
 The fragment group construction process maintains the following definitions and
 invariants:
