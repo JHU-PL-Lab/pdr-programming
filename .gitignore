@@ -15,5 +15,6 @@
 /*.dot
 /*.pdf
 
-# Custom build configuration files
+# Custom build configuration files and materials
 /.local_*
+/local
