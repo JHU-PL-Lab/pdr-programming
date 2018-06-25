@@ -21,3 +21,6 @@
 
 # jbuilder creates its own .merlin files
 .merlin
+
+# other jbuilder intermediates
+/*.install
