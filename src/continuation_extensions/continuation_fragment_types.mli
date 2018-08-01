@@ -49,9 +49,12 @@ Alrighty... here we go again.
     * Each output point in a fragment should record which variables it can
       provide (and what their types are).  In stitching, this will be used to
       pass to the next fragment the bound variables that it needs.
-    * Each fragment should record the free variables in its body so that it can
-      expression which of the variables bound by its previous fragments it needs
-      to have bound.
+    * Each fragment retains the set of variables which are free in its body.
+      Further, these variables may be associated with the UID of the fragment
+      which will bind them.  If a free variable is not associated with a
+      fragment UID, then it is free in the entire expression in which it
+      appears.  If a free variable is associated with a UID, then its value will
+      be supplied by the fragment with that UID.
 * A fragment graph is a collection of these fragments.  Edges are defined by the
   IDs stored in output points, so no explicit edges are necessary in the
   fragment graph structure.
@@ -126,8 +129,14 @@ type fragment =
     (** A location to attribute to this fragment. *)
 
     fragment_free_variables: Var_set.t;
-    (** The set of variables which are free in this fragment and must be
-        supplied by the previously-executed fragment. *)
+    (** The set of variables which are free in this fragment. *)
+
+    fragment_externally_bound_variables:
+      (Fragment_uid.t * core_type option) Var_map.t;
+    (** The set of variables in this fragment which are bound by other fragments
+        in its group.  The pair identifies the UID of the fragment which binds
+        the variable for this fragment as well as the variable's type, if it is
+        known. *)
 
     fragment_input_hole: input_hole_data option;
     (** The input hole for this fragment (if one exists). *)

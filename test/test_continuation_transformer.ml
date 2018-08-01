@@ -236,10 +236,10 @@ add_continuation_transform_test
 add_continuation_transform_test
   "pure let binding"
   [%expr let a = 0 in a]
-  { ctte_entry = 2;
-    ctte_exits = [2];
+  { ctte_entry = 1;
+    ctte_exits = [1];
     ctte_fragments =
-      [ { cttfe_id = 2;
+      [ { cttfe_id = 1;
           cttfe_has_input = false;
           cttfe_outputs = [ { cttee_id = None; cttee_extension = false } ];
           cttfe_code = [%expr let a = 0 in EVAL_HOLE("None", a) ]
@@ -267,15 +267,15 @@ add_continuation_transform_test
   "impure let binding"
   [%expr let a = [%pop] in a]
   { ctte_entry = 0;
-    ctte_exits = [2];
+    ctte_exits = [1];
     ctte_fragments =
       [{ cttfe_id = 0; cttfe_has_input = false;
          cttfe_outputs =
-           [{ cttee_id = (Some 2);
+           [{ cttee_id = (Some 1);
               cttee_extension = true }
            ];
-         cttfe_code = [% expr EXT_HOLE "2" ]};
-       { cttfe_id = 2; cttfe_has_input = true;
+         cttfe_code = [% expr EXT_HOLE "1" ]};
+       { cttfe_id = 1; cttfe_has_input = true;
          cttfe_outputs =
            [{ cttee_id = None;
               cttee_extension = false }
@@ -362,10 +362,10 @@ add_continuation_transform_test
       let y = [%pop] in
       x
   ]
-  { ctte_entry = 6;
-    ctte_exits = [4];
+  { ctte_entry = 4;
+    ctte_exits = [3];
     ctte_fragments =
-      [{ cttfe_id = 4; cttfe_has_input = true;
+      [{ cttfe_id = 3; cttfe_has_input = true;
          cttfe_outputs = [{ cttee_id = None; cttee_extension = false }];
          cttfe_code =
            [%expr
@@ -373,12 +373,12 @@ add_continuation_transform_test
              EVAL_HOLE("None", x)
            ]
        };
-       { cttfe_id = 6; cttfe_has_input = false;
-         cttfe_outputs = [{ cttee_id = Some 4; cttee_extension = true }];
+       { cttfe_id = 4; cttfe_has_input = false;
+         cttfe_outputs = [{ cttee_id = Some 3; cttee_extension = true }];
          cttfe_code =
            [%expr
              match x with
-             | Foo -> let x = 4 in EXT_HOLE "4"
+             | Foo -> let x = 4 in EXT_HOLE "3"
            ]
        }
       ]
@@ -390,16 +390,16 @@ add_continuation_transform_test
   [%expr
     match x with
     | Foo ->
-      let x = 4 in
+      let x = 3 in
       let y = [%pop] in
       x
     | Bar ->
       [%pop]
   ]
-  { ctte_entry = 7;
-    ctte_exits = [4; 7];
+  { ctte_entry = 5;
+    ctte_exits = [3; 5];
     ctte_fragments =
-      [{ cttfe_id = 4; cttfe_has_input = true;
+      [{ cttfe_id = 3; cttfe_has_input = true;
          cttfe_outputs = [{ cttee_id = None; cttee_extension = false }];
          cttfe_code =
            [%expr
@@ -407,14 +407,14 @@ add_continuation_transform_test
              EVAL_HOLE("None", x)
            ]
        };
-       { cttfe_id = 7; cttfe_has_input = false;
-         cttfe_outputs = [{ cttee_id = Some 4; cttee_extension = true };
+       { cttfe_id = 5; cttfe_has_input = false;
+         cttfe_outputs = [{ cttee_id = Some 3; cttee_extension = true };
                           { cttee_id = None; cttee_extension = true }
                          ];
          cttfe_code =
            [%expr
              match x with
-             | Foo -> let x = 4 in EXT_HOLE "4"
+             | Foo -> let x = 3 in EXT_HOLE "3"
              | Bar -> EXT_HOLE "None"
            ]
        };
@@ -441,14 +441,14 @@ add_continuation_transform_test
   "impure tuple"
   [%expr ([%pop], 4)]
   { ctte_entry = 0;
-    ctte_exits = [3];
+    ctte_exits = [2];
     ctte_fragments =
       [{ cttfe_id = 0; cttfe_has_input = false;
-         cttfe_outputs = [{cttee_id = Some 3; cttee_extension = true }];
+         cttfe_outputs = [{cttee_id = Some 2; cttee_extension = true }];
          cttfe_code =
-           [%expr EXT_HOLE "3" ]
+           [%expr EXT_HOLE "2" ]
        };
-       { cttfe_id = 3; cttfe_has_input = true;
+       { cttfe_id = 2; cttfe_has_input = true;
          cttfe_outputs = [{cttee_id = None; cttee_extension = false }];
          cttfe_code =
            [%expr let var0 = _INPUT in EVAL_HOLE("None", (var0, 4)) ]
@@ -460,18 +460,18 @@ add_continuation_transform_test
 add_continuation_transform_test
   "impure 4-tuple with pure let binding"
   [%expr (2, [%pop], 4, 5)]
-  { ctte_entry = 6;
-    ctte_exits = [5];
+  { ctte_entry = 1;
+    ctte_exits = [4];
     ctte_fragments =
-      [{ cttfe_id = 5; cttfe_has_input = true;
+      [{ cttfe_id = 4; cttfe_has_input = true;
          cttfe_outputs = [{cttee_id = None; cttee_extension = false }];
          cttfe_code =
            [%expr let var0 = _INPUT in EVAL_HOLE("None", (var1, var0, 4, 5)) ]
        };
-       { cttfe_id = 6; cttfe_has_input = false;
-         cttfe_outputs = [{cttee_id = Some 5; cttee_extension = true }];
+       { cttfe_id = 1; cttfe_has_input = false;
+         cttfe_outputs = [{cttee_id = Some 4; cttee_extension = true }];
          cttfe_code =
-           [%expr let var1 = 2 in EXT_HOLE "5" ]
+           [%expr let var1 = 2 in EXT_HOLE "4" ]
        }
       ]
   }
@@ -510,14 +510,14 @@ add_continuation_transform_test
 add_continuation_transform_test
   "call impure function"
   [%expr [%pop] x]
-  { ctte_entry = 0; ctte_exits = [3];
+  { ctte_entry = 0; ctte_exits = [2];
     ctte_fragments =
       [{ cttfe_id = 0; cttfe_has_input = false;
          cttfe_outputs =
-           [{ cttee_id = (Some 3); cttee_extension = true }];
-         cttfe_code = [%expr EXT_HOLE "3" ]
+           [{ cttee_id = (Some 2); cttee_extension = true }];
+         cttfe_code = [%expr EXT_HOLE "2" ]
        };
-       { cttfe_id = 3; cttfe_has_input = true;
+       { cttfe_id = 2; cttfe_has_input = true;
          cttfe_outputs =
            [{ cttee_id = None; cttee_extension = false }];
          cttfe_code = [%expr let var0 = _INPUT in EVAL_HOLE ("None", (var0 x))]
@@ -529,18 +529,18 @@ add_continuation_transform_test
 add_continuation_transform_test
   "call function with impure argument"
   [%expr f [%pop]]
-  { ctte_entry = 4; ctte_exits = [3];
+  { ctte_entry = 1; ctte_exits = [2];
     ctte_fragments =
-      [{ cttfe_id = 3; cttfe_has_input = true;
+      [{ cttfe_id = 2; cttfe_has_input = true;
          cttfe_outputs =
            [{ cttee_id = None; cttee_extension = false }];
          cttfe_code =
            [%expr let var0 = _INPUT in EVAL_HOLE ("None", (var1 var0)) ]
        };
-       { cttfe_id = 4; cttfe_has_input = false;
+       { cttfe_id = 1; cttfe_has_input = false;
          cttfe_outputs =
-           [{ cttee_id = (Some 3); cttee_extension = true }];
-         cttfe_code = [%expr let var1 = f  in EXT_HOLE "3" ]
+           [{ cttee_id = (Some 2); cttee_extension = true }];
+         cttfe_code = [%expr let var1 = f  in EXT_HOLE "2" ]
        }
       ]
   }

@@ -44,6 +44,7 @@ struct
     String.join "." @@
     Longident.flatten ident
   ;;
+  let show = Pp_utils.pp_to_string pp;;
 end;;
 
 module Var_set =

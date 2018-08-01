@@ -14,6 +14,14 @@ val new_fresh_variable_context :
 
 val fresh_variable_name : fresh_variable_context -> string
 
+module Longident_value :
+sig
+  type t = Longident.t
+  val compare : t -> t -> int
+  val pp : t Pp_utils.pretty_printer
+  val show : t -> string
+end;;
+
 module Var_set :
 sig
   include Set.S with type elt = Longident.t
