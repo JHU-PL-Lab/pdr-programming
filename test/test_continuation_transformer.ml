@@ -611,7 +611,9 @@ add_continuation_transform_test
          ];
          cttfe_ext_bound_vars = [];
          cttfe_code =
-           [%expr let var0 = INPUT_HOLE in EVAL_HOLE("None", (var1, var0, 4, 5)) ];
+           [%expr
+             let var0 = INPUT_HOLE in EVAL_HOLE("None", (var1, var0, 4, 5))
+           ];
        };
        { cttfe_id = 1; cttfe_has_input = false;
          cttfe_outputs = [
