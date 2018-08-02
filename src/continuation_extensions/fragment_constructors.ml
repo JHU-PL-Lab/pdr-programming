@@ -7,10 +7,12 @@ open Batteries;;
 open Jhupllib;;
 
 open Asttypes;;
-open Continuation_fragment_types;;
-open Continuation_transformer_monad;;
 open Parsetree;;
+
 open Pdr_programming_utils.Variable_utils;;
+
+open Fragment_types;;
+open Transformer_monad;;
 
 (* FIXME: aren't function parameters resolved from right to left in OCaml?
    Are we messing that up with our sequentialization here? *)

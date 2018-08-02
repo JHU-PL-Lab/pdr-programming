@@ -1,6 +1,8 @@
-open Continuation_fragment_types;;
 open Parsetree;;
+
 open Pdr_programming_utils.Variable_utils;;
+
+open Fragment_types;;
 
 type extension_predicate = extension -> bool
 

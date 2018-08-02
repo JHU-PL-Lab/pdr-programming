@@ -1,10 +1,11 @@
 open Batteries;;
 open Jhupllib;;
 
-open Continuation_fragment_constructors;;
-open Continuation_fragment_types;;
-open Continuation_transformer_monad;;
 open Parsetree;;
+
+open Fragment_constructors;;
+open Fragment_types;;
+open Transformer_monad;;
 
 (* FIXME:
    The current state of the below code is a mess and shouldn't really be used.

@@ -9,7 +9,7 @@ open Pdr_programming_continuation_extensions;;
 open Pdr_programming_utils;;
 open Pdr_programming_utils.Variable_utils;;
 
-open Continuation_fragment_types;;
+open Fragment_types;;
 
 (* ****************************************************************************
    Initialization and tooling
@@ -100,9 +100,9 @@ let add_continuation_transform_test
       (* Perform transformation *)
       let result =
         input
-        |> Continuation_transformer.do_transform
-        |> Continuation_transformer_monad.run
-          (Continuation_fragment_types.Fragment_uid.new_context ())
+        |> Transformer.do_transform
+        |> Transformer_monad.run
+          (Fragment_types.Fragment_uid.new_context ())
           (Variable_utils.new_fresh_variable_context ~prefix:"var" ())
           (fun (name,_) -> name.txt = "pop")
       in

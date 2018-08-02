@@ -1,6 +1,7 @@
-open Continuation_fragment_types;;
-open Continuation_transformer_monad;;
 open Parsetree;;
+
+open Fragment_types;;
+open Transformer_monad;;
 
 (**
    This module provides a tool for transforming an OCaml AST into a collection
