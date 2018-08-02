@@ -29,7 +29,6 @@ let record_start f () =
   vbox f 0;
   str f "{ ";
   vbox f 0;
-  cut f ();
 ;;
 
 let record_stop f () =
