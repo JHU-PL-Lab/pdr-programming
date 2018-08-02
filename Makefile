@@ -10,7 +10,7 @@ repl:
 	dune utop src -- -require pdr-programming
 
 test:
-	dune runtest -f --dev
+	dune runtest -f
 
 clean:
 	dune clean

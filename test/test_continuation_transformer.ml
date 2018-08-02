@@ -63,6 +63,9 @@ type continuation_transform_test_fragment_expectation =
     cttfe_outputs : continuation_transform_test_output_expectation list
         [@equal _list_sorted_pervasive_eq]
         [@compare _list_sorted_pervasive_compare];
+    cttfe_free_vars : string list
+        [@equal _list_sorted_pervasive_eq]
+        [@compare _list_sorted_pervasive_compare];
     cttfe_ext_bound_vars : (string * int * core_type option) list
         [@equal _list_sorted_pervasive_eq]
         [@compare _list_sorted_pervasive_compare];
@@ -133,6 +136,11 @@ let add_continuation_transform_test
               fragment.fragment_evaluation_holes @
             List.map convert_extension_hole
               fragment.fragment_extension_holes;
+          cttfe_free_vars =
+            fragment.fragment_free_variables
+            |> Var_set.enum
+            |> Enum.map _ident_to_string
+            |> List.of_enum;
           cttfe_ext_bound_vars =
             fragment.fragment_externally_bound_variables
             |> Var_map.enum
@@ -233,6 +241,7 @@ add_continuation_transform_test
           cttfe_outputs = [
             { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
           ];
+          cttfe_free_vars = [];
           cttfe_ext_bound_vars = [];
           cttfe_code = [%expr EVAL_HOLE("None", 4) ];
         }
@@ -251,6 +260,7 @@ add_continuation_transform_test
           cttfe_outputs = [
             { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
           ];
+          cttfe_free_vars = ["x"];
           cttfe_ext_bound_vars = [];
           cttfe_code = [%expr EVAL_HOLE("None", x) ];
         }
@@ -270,6 +280,7 @@ add_continuation_transform_test
             { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] };
             { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] };
           ];
+          cttfe_free_vars = [];
           cttfe_ext_bound_vars = [];
           cttfe_code =
             [%expr
@@ -293,6 +304,7 @@ add_continuation_transform_test
               cttee_bound_vars = [("a", None)]
             }
           ];
+          cttfe_free_vars = [];
           cttfe_ext_bound_vars = [];
           cttfe_code = [%expr let a = 0 in EVAL_HOLE("None", a) ];
         }
@@ -311,6 +323,7 @@ add_continuation_transform_test
           cttfe_outputs = [
             { cttee_id = None; cttee_extension = true; cttee_bound_vars = [] }
           ];
+          cttfe_free_vars = [];
           cttfe_ext_bound_vars = [];
           cttfe_code = [%expr EXT_HOLE("None") ];
         }
@@ -331,6 +344,7 @@ add_continuation_transform_test
               cttee_bound_vars = [];
             }
            ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code = [% expr EXT_HOLE "1" ];
        };
@@ -341,8 +355,41 @@ add_continuation_transform_test
               cttee_bound_vars = [("a",None)]
             }
            ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code = [%expr let a = INPUT_HOLE  in EVAL_HOLE ("None", a)];
+       }
+      ]
+  }
+;;
+
+add_continuation_transform_test
+  "impure let binding with free variable in body"
+  [%expr let a = [%pop] in b]
+  { ctte_entry = 0;
+    ctte_exits = [1];
+    ctte_fragments =
+      [{ cttfe_id = 0; cttfe_has_input = false;
+         cttfe_outputs =
+           [{ cttee_id = (Some 1);
+              cttee_extension = true;
+              cttee_bound_vars = [];
+            }
+           ];
+         cttfe_free_vars = [];
+         cttfe_ext_bound_vars = [];
+         cttfe_code = [% expr EXT_HOLE "1" ];
+       };
+       { cttfe_id = 1; cttfe_has_input = true;
+         cttfe_outputs =
+           [{ cttee_id = None;
+              cttee_extension = false;
+              cttee_bound_vars = [("a",None)]
+            }
+           ];
+         cttfe_free_vars = ["b"];
+         cttfe_ext_bound_vars = [];
+         cttfe_code = [%expr let a = INPUT_HOLE  in EVAL_HOLE ("None", b)];
        }
       ]
   }
@@ -361,6 +408,7 @@ add_continuation_transform_test
               cttee_bound_vars = [("x", None)];
             }
            ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code = [% expr let x = 4 in EXT_HOLE "2" ];
        };
@@ -371,6 +419,7 @@ add_continuation_transform_test
               cttee_bound_vars = [("x",None); ("y",None)]
             }
            ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code = [%expr let y = INPUT_HOLE  in EVAL_HOLE ("None", x)];
        }
@@ -391,6 +440,7 @@ add_continuation_transform_test
          cttfe_outputs = [
            { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code =
            [%expr
@@ -417,6 +467,7 @@ add_continuation_transform_test
            { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] };
            { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] };
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code =
            [%expr
@@ -442,6 +493,7 @@ add_continuation_transform_test
          cttfe_outputs = [
            { cttee_id = None; cttee_extension = true; cttee_bound_vars = [] }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code =
            [%expr
@@ -472,6 +524,7 @@ add_continuation_transform_test
              cttee_bound_vars = [("x",None);("y",None)]
            }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code =
            [%expr
@@ -486,6 +539,7 @@ add_continuation_transform_test
              cttee_bound_vars = [("x",None)]
            }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code =
            [%expr
@@ -518,6 +572,7 @@ add_continuation_transform_test
              cttee_bound_vars = [("x",None); ("y",None)]
            }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code =
            [%expr
@@ -536,6 +591,7 @@ add_continuation_transform_test
              cttee_bound_vars = []
            }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code =
            [%expr
@@ -558,6 +614,7 @@ add_continuation_transform_test
          cttfe_outputs = [
            {cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code = [%expr EVAL_HOLE("None", (4,8)) ];
        }
@@ -578,6 +635,7 @@ add_continuation_transform_test
              cttee_bound_vars = []
            }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code = [%expr EXT_HOLE "2" ];
        };
@@ -588,6 +646,7 @@ add_continuation_transform_test
              cttee_bound_vars = [("var0",None)]
            }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code =
            [%expr let var0 = INPUT_HOLE in EVAL_HOLE("None", (var0, 4)) ];
@@ -609,6 +668,7 @@ add_continuation_transform_test
              cttee_bound_vars = [("var0", None); ("var1", None)]
            }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code =
            [%expr
@@ -622,6 +682,7 @@ add_continuation_transform_test
              cttee_bound_vars = [("var1", None)]
            }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code = [%expr let var1 = 2 in EXT_HOLE "4" ];
        }
@@ -639,6 +700,7 @@ add_continuation_transform_test
          cttfe_outputs = [
            {cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
          ];
+         cttfe_free_vars = ["f"; "x"];
          cttfe_ext_bound_vars = [];
          cttfe_code = [%expr EVAL_HOLE("None", f x) ];
        }
@@ -656,6 +718,7 @@ add_continuation_transform_test
          cttfe_outputs = [
            {cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
          ];
+         cttfe_free_vars = ["f"; "x"; "y"];
          cttfe_ext_bound_vars = [];
          cttfe_code = [%expr EVAL_HOLE("None", f x y) ]
        }
@@ -675,6 +738,7 @@ add_continuation_transform_test
              cttee_bound_vars = []
            }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code = [%expr EXT_HOLE "2" ];
        };
@@ -685,6 +749,7 @@ add_continuation_transform_test
              cttee_bound_vars = [("var0", None)]
            }
          ];
+         cttfe_free_vars = ["x"];
          cttfe_ext_bound_vars = [];
          cttfe_code = [%expr let var0 = INPUT_HOLE in EVAL_HOLE ("None", (var0 x))];
        }
@@ -704,6 +769,7 @@ add_continuation_transform_test
              cttee_bound_vars = [("var0", None);("var1", None)]
            }
          ];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code =
            [%expr let var0 = INPUT_HOLE in EVAL_HOLE ("None", (var1 var0)) ];
@@ -715,6 +781,7 @@ add_continuation_transform_test
              cttee_bound_vars = [("var1", None)]
            }
          ];
+         cttfe_free_vars = ["f"];
          cttfe_ext_bound_vars = [];
          cttfe_code = [%expr let var1 = f  in EXT_HOLE "2" ];
        }
