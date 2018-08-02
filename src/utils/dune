@@ -1,12 +1,10 @@
 (library
-  ( (name pdr_programming_utils)
-    (public_name pdr-programming.utils)
-    (synopsis "Utilities for the PDR programming library.")
-    (libraries
-      ( batteries
-        compiler-libs.common
-        jhupllib
-      )
-    )
+  (name pdr_programming_utils)
+  (public_name pdr-programming.utils)
+  (synopsis "Utilities for the PDR programming library.")
+  (libraries
+    batteries
+    compiler-libs.common
+    jhupllib
   )
 )

@@ -1,17 +1,18 @@
 (library
-  ( (name pdr_programming_continuation_extensions)
-    (public_name pdr-programming.continuation-extensions)
-    (synopsis "A tool for continuation-transforming code and inserting logic at each continuation")
-    (libraries
-      ( batteries
-        compiler-libs.common
-        jhupllib
-        ocaml-migrate-parsetree
-        pdr-programming.utils
-      )
+  (name pdr_programming_continuation_extensions)
+  (public_name pdr-programming.continuation-extensions)
+  (synopsis "A tool for continuation-transforming code and inserting logic at each continuation")
+  (libraries
+    batteries
+    compiler-libs.common
+    jhupllib
+    ocaml-migrate-parsetree
+    pdr-programming.utils
+  )
+  (preprocess
+    (pps
+      ocaml-monadic
+      ppx_tools_versioned.metaquot_406
     )
-    (preprocess (pps
-      (ocaml-monadic ppx_tools_versioned.metaquot_406)
-    ))
   )
 )

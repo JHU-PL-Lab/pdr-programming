@@ -1,48 +1,47 @@
 (alias
-  ( (name runtest)
-    (deps (test.exe))
-    (action (run ${<}))
-  )
+  (name runtest)
+  (deps test.exe)
+  (action (run ${<}))
 )
 
-(executable (
+(executable
   (name test)
   (modules
-    (Test Test_a_normalization Test_continuation_transformer)
+    Test
+    Test_a_normalization
+    Test_continuation_transformer
   )
   (libraries
-    ( oUnit
-      pdr-programming.a-normalization
-      pdr-programming.continuation-extensions
-      pds-reachability
-    )
+    oUnit
+    pdr-programming.a-normalization
+    pdr-programming.continuation-extensions
+    pds-reachability
   )
   (preprocess
     (pps
-      ( ppx_deriving.std
-        ppx_tools_versioned.metaquot_406
-      )
+      ppx_deriving.std
+      ppx_tools_versioned.metaquot_406
     )
   )
   (flags (:standard (-w -39)))
-))
+)
 
-(executable (
+(executable
   (name sandbox)
-  (modules Sandbox)
+  (modules
+    Sandbox
+  )
   (libraries
-    ( oUnit
-      pdr-programming.a-normalization
-      pdr-programming.continuation-extensions
-      pds-reachability
-    )
+    oUnit
+    pdr-programming.a-normalization
+    pdr-programming.continuation-extensions
+    pds-reachability
   )
   (preprocess
     (pps
-      ( ppx_deriving.std
-        ppx_tools_versioned.metaquot_406
-      )
+      ppx_deriving.std
+      ppx_tools_versioned.metaquot_406
     )
   )
   (flags (:standard (-w -39)))
-))
+)

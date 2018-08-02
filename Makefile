@@ -1,7 +1,10 @@
 .PHONY: all clean repl test
 
 all:
-	dune build --dev
+	dune build
+
+sandbox:
+	dune build test/sandbox.exe
 
 repl:
 	dune utop src -- -require pdr-programming
@@ -11,4 +14,3 @@ test:
 
 clean:
 	dune clean
-
