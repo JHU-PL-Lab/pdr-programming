@@ -146,3 +146,7 @@ let pp_fragment_group : fragment_group pretty_printer = fun f fg ->
     fg.fg_exits;
   record_stop f ();
 ;;
+
+let string_of_fragment = pp_to_string pp_fragment;;
+
+let string_of_fragment_group = pp_to_string pp_fragment_group;;

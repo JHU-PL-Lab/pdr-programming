@@ -8,8 +8,7 @@ open Pdr_programming_utils;;
 
 let main () =
   let expr = [%expr
-     (* if [%pop] then 4 else 5 *)
-    4
+    let x = 1 in x
   ]
   in
   let result =

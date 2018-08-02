@@ -422,7 +422,7 @@ let fragment_metadata_bind
      free variables which were not covered by the applicable bindings. *)
   let updated_free_variables =
     fragment.fragment_free_variables
-    |> Var_set.filter (fun k -> Var_map.mem k applicable_bindings)
+    |> Var_set.filter (fun k -> not @@ Var_map.mem k applicable_bindings)
   in
   (* Now determine the new mapping of externally bound variables.  If the
      binder UID matches this fragment, then this map won't change: the free
@@ -567,11 +567,14 @@ let merge_externally_bound_maps
     fragment group. *)
 let replace_entry_fragment (fragment : fragment) (group : fragment_group)
   : fragment_group =
+  (* Rewrite the graph to include the new fragment. *)
   let graph =
     group.fg_graph
     |> Fragment_uid_map.remove group.fg_entry
     |> Fragment_uid_map.add fragment.fragment_uid fragment
   in
+  (* Rewrite any exit points which matched the old entry point.  (This is
+     necessary e.g. in the casse of pure fragments. *)
   let exits =
     group.fg_exits
     |> Fragment_uid_set.map
@@ -579,7 +582,26 @@ let replace_entry_fragment (fragment : fragment) (group : fragment_group)
          if exit_uid = group.fg_entry then fragment.fragment_uid else exit_uid
       )
   in
-  { fg_graph = graph;
+  (* If any externally-bound variables referred to the old entry point, they
+     need to be adjusted to refer to the new one. *)
+  let graph' =
+    graph
+    |> Fragment_uid_map.map
+      (fun fragment ->
+         { fragment with
+           fragment_externally_bound_variables =
+             fragment.fragment_externally_bound_variables
+             |> Var_map.map
+               (fun (binder, typ_opt) ->
+                  ((if binder = group.fg_entry
+                    then fragment.fragment_uid else binder),
+                   typ_opt
+                  )
+               )
+         }
+      )
+  in
+  { fg_graph = graph';
     fg_loc = group.fg_loc;
     fg_entry = fragment.fragment_uid;
     fg_exits = exits;
