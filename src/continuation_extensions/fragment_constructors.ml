@@ -778,7 +778,7 @@ let embed_nonbind
    As an example of use, consider the following pseudo-invocation, using strings
    to represent both fragments and expressions:
 
-      embed_nonbind_pure_many
+      embed_nonbind_many_pure
         loc
         ["4"; "5"]
         (fun input_hole [e1;e2] -> "if <HOLE> then <e1> else <e2>")
@@ -874,6 +874,8 @@ let embed_nonbind_many_pure
              fg_exits = Fragment_uid_set.singleton entry_uid;
            }
   else
+    (* Gather up the relevant facts of all of the groups that we are tucking
+       into a pure wrapper. *)
     let target_entry_uids =
       gs
       |> List.enum
@@ -895,6 +897,9 @@ let embed_nonbind_many_pure
         )
       |> List.split
     in
+    (* Create a single entry fragment to replace the entry fragments of all of
+       the provided groups.  We will merge all of those groups together with
+       this new, unified entry point. *)
     let new_entry_fragment =
       { fragment_uid = entry_uid;
         fragment_loc = loc;
@@ -949,6 +954,7 @@ let embed_nonbind_many_pure
           )
       }
     in
+    (* Create the graph for the group that uses this new entry point. *)
     let new_graph =
       gs
       |> List.map (fun g -> g.fg_graph)
@@ -956,6 +962,27 @@ let embed_nonbind_many_pure
       |> Fragment_uid_map.filter
         (fun uid _ -> not @@ Fragment_uid_set.mem uid target_entry_uids)
       |> Fragment_uid_map.add entry_uid new_entry_fragment
+      |> Fragment_uid_map.map
+        (fun fragment ->
+           (* The old fragments from any of the provided groups may have
+              referred to their entry points as the source of external variable
+              bindings.  Since those entry points have been replaced by this
+              new one, update the external binding map appropriately. *)
+           { fragment with
+             fragment_externally_bound_variables =
+               fragment.fragment_externally_bound_variables
+               |> Var_map.map
+                 (fun (binder_uid, typ_opt) ->
+                    let new_binder_uid =
+                      if Fragment_uid_set.mem binder_uid target_entry_uids then
+                        entry_uid
+                      else
+                        binder_uid
+                    in
+                    (new_binder_uid, typ_opt)
+                 )
+           }
+        )
     in
     return
       { fg_graph = new_graph;
