@@ -587,10 +587,10 @@ let replace_entry_fragment (fragment : fragment) (group : fragment_group)
   let graph' =
     graph
     |> Fragment_uid_map.map
-      (fun fragment ->
-         { fragment with
+      (fun old_fragment ->
+         { old_fragment with
            fragment_externally_bound_variables =
-             fragment.fragment_externally_bound_variables
+             old_fragment.fragment_externally_bound_variables
              |> Var_map.map
                (fun (binder, typ_opt) ->
                   ((if binder = group.fg_entry
@@ -601,11 +601,14 @@ let replace_entry_fragment (fragment : fragment) (group : fragment_group)
          }
       )
   in
-  { fg_graph = graph';
-    fg_loc = group.fg_loc;
-    fg_entry = fragment.fragment_uid;
-    fg_exits = exits;
-  }
+  let result =
+    { fg_graph = graph';
+      fg_loc = group.fg_loc;
+      fg_entry = fragment.fragment_uid;
+      fg_exits = exits;
+    }
+  in
+  result
 ;;
 
 (** Rewrites all of the exit points of a given fragment group to point to a
@@ -702,12 +705,22 @@ let embed_nonbind
         fragment_loc = loc;
         fragment_free_variables =
           Var_set.union
-            f1.fragment_free_variables old_entry.fragment_free_variables;
+            f1.fragment_free_variables
+            old_entry.fragment_free_variables;
         fragment_externally_bound_variables =
+          (* Note: pure fragments exist in singleton graphs, so f1 can't have
+             any externally bound variables. *)
           old_entry.fragment_externally_bound_variables;
         fragment_input_hole = None;
-        fragment_evaluation_holes = old_entry.fragment_evaluation_holes;
-        fragment_extension_holes = old_entry.fragment_extension_holes;
+        fragment_evaluation_holes =
+          (* The pure group's evaluation holes will be filled using identity
+             functions so that, when it evaluates, the result will be given to
+             the input hole of the second group.  So the only holes left will be
+             those of the second group. *)
+          old_entry.fragment_evaluation_holes;
+        fragment_extension_holes =
+          (* The pure group, by definition, has no extension holes. *)
+          old_entry.fragment_extension_holes;
         fragment_code =
           (fun input_expr_opt eval_holes_fns ext_holes_exprs ->
              assert_no_input_expr uid input_expr_opt;
@@ -1132,11 +1145,11 @@ and fragment_let
         )
         bound_body_entry
     in
-    let let_group =
-      fragment_group_metadata_free free_in_bindings @@
-      replace_entry_fragment let_entry bound_body
+    let let_group = replace_entry_fragment let_entry bound_body in
+    let bound_let_group =
+      fragment_group_metadata_free free_in_bindings let_group
     in
-    return let_group
+    return bound_let_group
   else
     begin
       (* At least one of the bindings isn't pure.  Since a single let binding is
@@ -1204,7 +1217,8 @@ and fragment_let
          into the let expression doesn't introduce any new binding information
          and we can use a simple control flow connection routine to embed one
          within the other. *)
-      return @@ embed_nonbind loc binding_fragment_group bound_let
+      let result = embed_nonbind loc binding_fragment_group bound_let in
+      return result
     end
 
 (* TODO: more constructors here *)

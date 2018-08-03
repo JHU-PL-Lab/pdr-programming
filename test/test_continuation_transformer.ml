@@ -213,9 +213,29 @@ let add_fragment_metadata_bind_test
       in
       let cactual = canonicalize_expected_fragment @@ convert_fragment result in
       let cexpected = canonicalize_expected_fragment expected in
-      (* TODO: something with a bit more semantic aid to help the developer *)
       assert_equal
         ~printer:show_continuation_transform_test_fragment_expectation
+        cexpected cactual
+    )
+;;
+
+(** Creates and registers a test of the non-binding embedding routine. *)
+let add_embed_nonbind_test
+    (name : string)
+    (g1 : fragment_group)
+    (g2 : fragment_group)
+    (expected : continuation_transform_test_expectation)
+  : unit =
+  add_test (name >:: fun _ ->
+      let result = Fragment_constructors.embed_nonbind Location.none g1 g2 in
+      let cactual =
+        canonicalize_expected_group @@ convert_fragment_group result
+      in
+      let cexpected =
+        canonicalize_expected_group expected
+      in
+      assert_equal
+        ~printer:show_continuation_transform_test_expectation
         cexpected cactual
     )
 ;;
@@ -320,7 +340,7 @@ add_fragment_metadata_bind_test
       match lst with
       | [f] -> f [%expr x]
       | _ -> raise @@ Utils.Invariant_failure
-          "non-singleton evaluation hole function list in text \"bind free x\""
+          "non-singleton evaluation hole function list in test \"bind free x\""
   }
   { cttfe_id = 0;
     cttfe_has_input = false;
@@ -335,6 +355,87 @@ add_fragment_metadata_bind_test
     cttfe_code = [%expr EVAL_HOLE("None", x)];
   }
 ;;
+
+(*
+(* TODO: remove or rebuild this test.  It uses functions incorrectly. *)
+let context = Fragment_uid.new_context () in
+let uid1 = Fragment_uid.fresh ~context:context () in
+let uid2 = Fragment_uid.fresh ~context:context () in
+add_embed_nonbind_test
+  "embed_nonbind with free variable"
+  { fg_graph =
+      Fragment_uid_map.singleton uid1
+        { fragment_uid = uid1;
+          fragment_loc = Location.none;
+          fragment_free_variables = Var_set.singleton (Longident.Lident "x");
+          fragment_externally_bound_variables = Var_map.empty;
+          fragment_input_hole = None;
+          fragment_evaluation_holes =
+            [ { evhd_loc = Location.none;
+                evhd_target_fragment = None;
+                evhd_bound_variables = Var_map.empty;
+              }
+            ];
+          fragment_extension_holes = [];
+          fragment_code = fun _ lst _ ->
+            match lst with
+            | [f] -> f [%expr x]
+            | _ -> raise @@ Utils.Invariant_failure (
+                "non-singleton evaluation hole function list in test " ^
+                "\"embed_nonbind with free variable\"")
+        };
+    fg_loc = Location.none;
+    fg_entry = uid1;
+    fg_exits = Fragment_uid_set.singleton uid1;
+  }
+  { fg_graph =
+      Fragment_uid_map.singleton uid2
+        { fragment_uid = uid2;
+          fragment_loc = Location.none;
+          fragment_free_variables = Var_set.empty;
+          fragment_externally_bound_variables = Var_map.empty;
+          fragment_input_hole = Some { inhd_loc = Location.none };
+          fragment_evaluation_holes =
+            [ { evhd_loc = Location.none;
+                evhd_target_fragment = None;
+                evhd_bound_variables = Var_map.empty;
+              }
+            ];
+          fragment_extension_holes = [];
+          fragment_code = fun inexpr_opt lst _ ->
+            let inexpr = Option.get inexpr_opt in
+            match lst with
+            | [f] ->
+              (* BUG: THIS IS NOT HOW WE USE EMBED_NONBIND! *)
+              f [%expr let y = 4 in [%e inexpr] ]
+            | _ -> raise @@ Utils.Invariant_failure (
+                "non-singleton evaluation hole function list in test " ^
+                "\"embed_nonbind with free variable\"")
+        };
+    fg_loc = Location.none;
+    fg_entry = uid2;
+    fg_exits = Fragment_uid_set.singleton uid2;
+  }
+  { ctte_entry = convert_uid uid2;
+    ctte_exits = [convert_uid uid2];
+    ctte_fragments =
+      [ { cttfe_id = convert_uid uid2;
+          cttfe_has_input = false;
+          cttfe_outputs = [
+            { cttee_id = None;
+              cttee_extension = false;
+              cttee_bound_vars = [("y",None)]
+            }
+          ];
+          cttfe_free_vars = ["x"];
+          cttfe_ext_bound_vars = [];
+          cttfe_code = [%expr let y = 4 in EVAL_HOLE("None", x)];
+        }
+      ]
+
+  }
+;;
+*)
 
 add_continuation_transform_test
   "constant"

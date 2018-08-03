@@ -8,7 +8,11 @@ open Pdr_programming_utils;;
 
 let main () =
   let expr = [%expr
-    let x = 1 in x
+    match a with
+    | Foo ->
+      let x = 4 in
+      let y = [%pop] in
+      x
   ]
   in
   let result =
