@@ -12,6 +12,8 @@
    preserve variable scope.
 *)
 
+(** TODO: deprecate this library; it's not being used anywhere *)
+
 open Parsetree;;
 
 (** A type representing contextual information about A-normalization.  If
