@@ -78,12 +78,21 @@ let pp_extension_hole_data : extension_hole_data pretty_printer = fun f ehd ->
   record_stop f ();
 ;;
 
+let pp_externally_bound_variable : externally_bound_variable pretty_printer =
+  fun f ebv ->
+    record_start f ();
+    record_item ~first:true f "var" Longident_value.pp ebv.ebv_variable;
+    record_item f "binder" Fragment_uid.pp ebv.ebv_binder;
+    record_item f "type" (pp_option core_type) ebv.ebv_type;
+    record_stop f ();
+;;
+
 let pp_fragment : fragment pretty_printer = fun f frag ->
   record_start f ();
   record_item ~first:true f "uid" Fragment_uid.pp frag.fragment_uid;
   record_item f "free_vars" Var_set.pp frag.fragment_free_variables;
   record_item f "ext_bound_vars"
-    (Var_map.pp @@ pp_tuple Fragment_uid.pp @@ pp_option core_type)
+    (Var_map.pp pp_externally_bound_variable)
     frag.fragment_externally_bound_variables;
   record_item f "input_hole" (pp_option pp_input_hole_data)
     frag.fragment_input_hole;

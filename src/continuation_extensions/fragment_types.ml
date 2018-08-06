@@ -51,6 +51,15 @@ type extension_hole_data =
   }
 ;;
 
+(** The type of an externally bound variable record. *)
+type externally_bound_variable =
+  { ebv_variable : Longident.t;
+    ebv_binder : Fragment_uid.t;
+    ebv_type : core_type option;
+    ebv_bind_loc : Location.t;
+  }
+;;
+
 (** The type of a code fragment. *)
 type fragment =
   { fragment_uid: Fragment_uid.t;
@@ -62,8 +71,7 @@ type fragment =
     fragment_free_variables: Var_set.t;
     (** The set of variables which are free in this fragment. *)
 
-    fragment_externally_bound_variables:
-      (Fragment_uid.t * core_type option) Var_map.t;
+    fragment_externally_bound_variables: externally_bound_variable Var_map.t;
     (** The set of variables in this fragment which are bound by other fragments
         in its group.  The pair identifies the UID of the fragment which binds
         the variable for this fragment as well as the variable's type, if it is

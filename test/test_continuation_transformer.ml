@@ -125,7 +125,8 @@ let convert_fragment (fragment : fragment)
       fragment.fragment_externally_bound_variables
       |> Var_map.enum
       |> Enum.map
-        (fun (k,(uid,cto)) -> (_ident_to_string k, convert_uid uid, cto))
+        (fun (k,ebv) ->
+           (_ident_to_string k, convert_uid ebv.ebv_binder, ebv.ebv_type))
       |> List.of_enum;
     cttfe_code =
       fragment.fragment_code
@@ -209,7 +210,7 @@ let add_fragment_metadata_bind_test
   add_test (name >:: fun _ ->
       let result =
         Fragment_constructors.fragment_metadata_bind
-          binder_uid bindings fragment
+          Location.none binder_uid bindings fragment
       in
       let cactual = canonicalize_expected_fragment @@ convert_fragment result in
       let cexpected = canonicalize_expected_fragment expected in

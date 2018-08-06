@@ -407,6 +407,7 @@ let fragment_group_metadata_free
     is shadowed by a previous mapping already present at those holes).
 *)
 let fragment_metadata_bind
+    (binder_loc : Location.t)
     (binder_uid : Fragment_uid.t)
     (bindings : core_type option Var_map.t)
     (fragment : fragment)
@@ -435,7 +436,17 @@ let fragment_metadata_bind
     else begin
       let new_external_bindings =
         applicable_bindings
-        |> Var_map.map (fun t -> (binder_uid, t))
+        |> Var_map.enum
+        |> Enum.map
+          (fun (var, typ_opt) ->
+             (var, { ebv_variable = var;
+                     ebv_binder = binder_uid;
+                     ebv_type = typ_opt;
+                     ebv_bind_loc = binder_loc
+                   }
+             )
+          )
+        |> Var_map.of_enum
       in
       Var_map.merge
         (fun var value1o value2o ->
@@ -449,8 +460,8 @@ let fragment_metadata_bind
                  "Tried to modify binding metadata to indicate fragment %s's variable %s is bound by both fragment %s and fragment %s"
                  (Fragment_uid.show fragment.fragment_uid)
                  (Longident_value.show var)
-                 (Fragment_uid.show @@ fst value1)
-                 (Fragment_uid.show @@ fst value2)
+                 (Fragment_uid.show @@ value1.ebv_binder)
+                 (Fragment_uid.show @@ value2.ebv_binder)
              )
         )
         fragment.fragment_externally_bound_variables
@@ -509,13 +520,16 @@ let fragment_metadata_bind
    process, see [fragment_metadata_bind].
 *)
 let fragment_group_metadata_bind
+    (binder_loc : Location.t)
     (binder_uid : Fragment_uid.t)
     (bindings : core_type option Var_map.t)
     (fragment_group : fragment_group)
   : fragment_group =
   let graph = fragment_group.fg_graph in
   let graph' =
-    Fragment_uid_map.map (fragment_metadata_bind binder_uid bindings) graph
+    Fragment_uid_map.map
+      (fragment_metadata_bind binder_loc binder_uid bindings)
+      graph
   in
   { fragment_group with
     fg_graph = graph'
@@ -544,9 +558,9 @@ let merge_fragment_graphs
 (** Computes the union of two bound variable maps.  If the graphs have
     overlapping mappings, an exception is raised. *)
 let merge_externally_bound_maps
-    (graph1 : (Fragment_uid.t * core_type option) Var_map.t)
-    (graph2 : (Fragment_uid.t * core_type option) Var_map.t)
-  : (Fragment_uid.t * core_type option) Var_map.t =
+    (ebv1 : externally_bound_variable Var_map.t)
+    (ebv2 : externally_bound_variable Var_map.t)
+  : externally_bound_variable Var_map.t =
   Var_map.merge
     (fun _ value1o value2o ->
        match value1o, value2o with
@@ -557,7 +571,7 @@ let merge_externally_bound_maps
          raise @@ Utils.Invariant_failure
            "Attempted to merge overlapping external binding maps"
     )
-    graph1 graph2
+    ebv1 ebv2
 ;;
 
 (** Replaces the entry fragment of a fragment group.  This operation removes the
@@ -592,11 +606,11 @@ let replace_entry_fragment (fragment : fragment) (group : fragment_group)
            fragment_externally_bound_variables =
              old_fragment.fragment_externally_bound_variables
              |> Var_map.map
-               (fun (binder, typ_opt) ->
-                  ((if binder = group.fg_entry
-                    then fragment.fragment_uid else binder),
-                   typ_opt
-                  )
+               (fun ebv ->
+                  if ebv.ebv_binder = group.fg_entry then
+                    { ebv with ebv_binder = fragment.fragment_uid }
+                  else
+                    ebv
                )
          }
       )
@@ -972,14 +986,10 @@ let embed_nonbind_many_pure
              fragment_externally_bound_variables =
                fragment.fragment_externally_bound_variables
                |> Var_map.map
-                 (fun (binder_uid, typ_opt) ->
-                    let new_binder_uid =
-                      if Fragment_uid_set.mem binder_uid target_entry_uids then
-                        entry_uid
-                      else
-                        binder_uid
-                    in
-                    (new_binder_uid, typ_opt)
+                 ( fun ebv ->
+                     if Fragment_uid_set.mem ebv.ebv_binder target_entry_uids
+                     then { ebv with ebv_binder = entry_uid }
+                     else ebv
                  )
            }
         )
@@ -1148,7 +1158,7 @@ and fragment_let
     (* We're going to be modifying the entry point of the group in order to do
        the binding, so credit it for doing the binding work. *)
     let bound_body =
-      fragment_group_metadata_bind body.fg_entry bound_by_patterns body
+      fragment_group_metadata_bind loc body.fg_entry bound_by_patterns body
     in
     let bound_body_entry = get_entry_fragment bound_body in
     let let_entry =
@@ -1214,7 +1224,7 @@ and fragment_let
       (* We're going to be modifying the entry point of the group in order to do
          the binding, so credit it for doing the binding work. *)
       let bound_body =
-        fragment_group_metadata_bind body.fg_entry bound_by_pattern body
+        fragment_group_metadata_bind loc body.fg_entry bound_by_pattern body
       in
       let bound_body_entry = get_entry_fragment bound_body in
       let bound_let_entry =
@@ -1293,6 +1303,7 @@ and fragment_match
       )
   in
   let bodies = cs |> List.map (fun (_,_,match_body) -> match_body) in
+  let locs = cs |> List.map (fun (p,_,_) -> p.ppat_loc) in
   (* Determine variable bindings so we can adjust the holes in the cases
      based on which variables their patterns bind. *)
   let vars_bound_in_bodies =
@@ -1303,9 +1314,10 @@ and fragment_match
   let bound_bodies =
     bodies
     |> List.combine vars_bound_in_bodies
+    |> List.combine locs
     |> List.map
-      (fun (vars_bound_in_body,body) ->
-         fragment_group_metadata_bind match_uid vars_bound_in_body body
+      (fun (loc,(vars_bound_in_body,body)) ->
+         fragment_group_metadata_bind loc match_uid vars_bound_in_body body
       )
   in
   let%bind match_with_input_hole =
