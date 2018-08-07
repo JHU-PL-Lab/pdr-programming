@@ -54,7 +54,7 @@ let add_declaration_generation_test
              }
           )
       in
-      assert_equal ~printer:(Pp_utils.pp_to_string Pprintast.structure)
+      assert_equal ~printer:(Pp_utils.pp_to_string (Printast.structure 0))
         expected structure
     )
 ;;
@@ -74,6 +74,21 @@ add_declaration_generation_test
       | Continuation_0
       | Continuation_1
   ]
+;;
+
+add_declaration_generation_test
+  "single pop let binding"
+  [%expr
+    let y : int = 4 in
+    let x = [%pop] in
+    y
+  ]
+  [%str
+    type continuation =
+      | Continuation_0
+      | Continuation_1 of int
+  ]
+;;
 
 (* ****************************************************************************
    Wiring and cleanup

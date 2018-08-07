@@ -113,8 +113,9 @@ let rec do_transform (e : expression)
     raise @@ Utils.Not_yet_implemented("transform: Pexp_while")
   | Parsetree.Pexp_for(_,_,_,_,_) ->
     raise @@ Utils.Not_yet_implemented("transform: Pexp_for")
-  | Parsetree.Pexp_constraint(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_constraint")
+  | Parsetree.Pexp_constraint(e,t) ->
+    let%bind g = do_transform e in
+    fragment_constraint loc attrs g t
   | Parsetree.Pexp_coerce(_,_,_) ->
     raise @@ Utils.Not_yet_implemented("transform: Pexp_coerce")
   | Parsetree.Pexp_send(_,_) ->

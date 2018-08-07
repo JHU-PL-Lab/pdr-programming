@@ -625,6 +625,25 @@ let replace_entry_fragment (fragment : fragment) (group : fragment_group)
   result
 ;;
 
+(** Given a fragment group, transforms the expression it produces by filtering
+    its entry fragment through a function.  The resulting group is identical
+    in every way to the original group except that its entry fragment's code
+    is passed through the provided mapping function.  This is useful for
+    wrapping the code represented by a fragment group in a larger expression.
+    Note that this does NOT change the metadata of the group or its fragments
+    in any way; as a result, the provided function should not introduce new
+    free variables or variable bindings.  This function is intended for simple,
+    non-metadata-affecting transformations only. *)
+let fragment_group_code_transform
+    (transform : expression -> expression)
+    (group : fragment_group)
+  : fragment_group =
+  let entry_fragment = get_entry_fragment group in
+  let entry_fragment' = fragment_code_transform transform entry_fragment in
+  let group' = replace_entry_fragment entry_fragment' group in
+  group'
+;;
+
 (** Rewrites all of the exit points of a given fragment group to point to a
     particular fragment.  This removes them from the list of exit points,
     yielding a group which has no exits. *)
@@ -1423,6 +1442,23 @@ and fragment_ifthenelse
       Var_set.empty
   in
   return @@ embed_nonbind loc g1 ifthenelse_hole_group
+
+(* TODO: more constructors here *)
+
+and fragment_constraint
+    (loc : Location.t) (attributes : attributes)
+    (g : fragment_group) (t : core_type)
+  : fragment_group m =
+  return (
+    g
+    |> fragment_group_code_transform
+      (fun e ->
+         { pexp_desc = Pexp_constraint(e, t);
+           pexp_loc = loc;
+           pexp_attributes = attributes
+         }
+      )
+  )
 
 (* TODO: more constructors here *)
 

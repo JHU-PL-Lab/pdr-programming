@@ -115,6 +115,8 @@ let create_continuation_constructor
   let constr_types =
     fragment.fragment_externally_bound_variables
     |> Var_map.enum
+    (* Extract the type of each variable so we know how to declare the
+       constructor. *)
     |> Enum.map
       (fun (_,ebv) ->
          match ebv.ebv_type with
@@ -122,6 +124,16 @@ let create_continuation_constructor
          | None ->
            raise @@ Untyped_continuation_variable(
              ebv.ebv_variable, ebv.ebv_bind_loc)
+      )
+    (* Type annotations on let-bindings often include a Ptyp_poly wrapper to
+       instantiate variables.  But if no variables are instantiated, this
+       complicates the type we are declaring them.  Strip out unnecessary
+       wrappers. *)
+    |> Enum.map
+      (fun t ->
+         match t.ptyp_desc with
+         | Ptyp_poly([], t') -> t'
+         | _ -> t
       )
     |> List.of_enum
   in

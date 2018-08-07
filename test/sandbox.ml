@@ -149,4 +149,12 @@ let main () =
     []
 ;;
 
-main ();;
+(* main ();; *)
+
+print_endline @@
+Pp_utils.pp_to_string (Pprintast.structure) @@
+(
+   [%str
+     type t = Foo of (int)
+   ]
+);;
