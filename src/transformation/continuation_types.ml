@@ -321,8 +321,8 @@ let call_constructor
     log(float_of_int maximum_constructors_per_level)
   in
   let rec loop level current_expr =
-    if level = 0 then current_expr else
-      loop (level - 1)
+    if level > level_count then current_expr else
+      loop (level + 1)
         { pexp_desc =
             Pexp_construct(
               Location.mkloc (Longident.Lident(
@@ -334,7 +334,7 @@ let call_constructor
           pexp_attributes = [];
         }
   in
-  loop level_count @@
+  loop 1 @@
   { pexp_desc =
       Pexp_construct(
         Location.mkloc (Longident.Lident constructor.cc_name) loc, args_expr_opt

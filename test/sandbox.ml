@@ -105,6 +105,8 @@ let fabricate_group_for_linear_let n =
 ;;
 
 let main () =
+  let open Fragment_types in
+  (* let open Variable_utils in *)
   (* let rec loop n e =
     if n = 1 then e else
       loop (n-1) [%expr let x = [%pop] in [%e e]]
@@ -114,8 +116,8 @@ let main () =
     expr
     |> Transformer.do_transform
     |> Transformer_monad.run
-      (Fragment_types.Fragment_uid.new_context ())
-      (Variable_utils.new_fresh_variable_context ~prefix:"var" ())
+      (Fragment_uid.new_context ())
+      (new_fresh_variable_context ~prefix:"var" ())
       (fun (name,_) -> name.txt = "pop")
      in *)
   let result = fabricate_group_for_linear_let 40001 in
@@ -135,8 +137,16 @@ let main () =
          }
       )
   in
+  let uids = List.of_enum @@ Fragment_uid_map.keys result.fg_graph in
   print_endline @@
-     Pp_utils.pp_to_string (Pprintast.toplevel_phrase) (Ptop_def structure)
+  Pp_utils.pp_to_string (Pprintast.toplevel_phrase) (Ptop_def structure);
+  print_endline @@
+  Pp_utils.pp_to_string (Pprintast.expression) @@
+  Continuation_types.call_constructor
+    Location.none
+    spec
+    (List.nth uids 20000)
+    []
 ;;
 
 main ();;
