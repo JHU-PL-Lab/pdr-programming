@@ -132,7 +132,7 @@ let main () =
     type_decls
     |> List.map
       (fun x ->
-         { pstr_desc = Pstr_type(Nonrecursive, [x]);
+         { pstr_desc = Pstr_type(Recursive, [x]);
            pstr_loc = Location.none;
          }
       )

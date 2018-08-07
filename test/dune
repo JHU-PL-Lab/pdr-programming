@@ -10,11 +10,13 @@
     Test
     Test_a_normalization
     Test_continuation_transformer
+    Test_declarations
   )
   (libraries
     oUnit
     pdr-programming.a-normalization
     pdr-programming.continuation-extensions
+    pdr-programming.transformation
     pds-reachability
   )
   (preprocess
