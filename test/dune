@@ -35,6 +35,7 @@
     oUnit
     pdr-programming.a-normalization
     pdr-programming.continuation-extensions
+    pdr-programming.transformation
     pds-reachability
   )
   (preprocess
