@@ -54,7 +54,7 @@ let add_declaration_generation_test
              }
           )
       in
-      assert_equal ~printer:(Pp_utils.pp_to_string (Printast.structure 0))
+      assert_equal ~printer:(Pp_utils.pp_to_string (Pprintast.structure))
         expected structure
     )
 ;;
@@ -77,9 +77,39 @@ add_declaration_generation_test
 ;;
 
 add_declaration_generation_test
-  "single pop let binding"
+  "continuation captures variable"
   [%expr
     let y : int = 4 in
+    let x = [%pop] in
+    y
+  ]
+  [%str
+    type continuation =
+      | Continuation_0
+      | Continuation_1 of int
+  ]
+;;
+
+add_declaration_generation_test
+  "continuation captures two variables"
+  [%expr
+    let y : int = 4 in
+    let z : int = 5 in
+    let x = [%pop] in
+    (y,z)
+  ]
+  [%str
+    type continuation =
+      | Continuation_0
+      | Continuation_1 of int * int
+  ]
+;;
+
+add_declaration_generation_test
+  "continuation captures one variable, avoids another"
+  [%expr
+    let y : int = 4 in
+    let z : string = "5" in
     let x = [%pop] in
     y
   ]
