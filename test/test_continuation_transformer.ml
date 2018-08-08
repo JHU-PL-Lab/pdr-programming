@@ -997,6 +997,34 @@ add_continuation_transform_test
   }
 ;;
 
+add_continuation_transform_test
+  "free variable transferred over continuation"
+  [%expr
+    let b = 4 in
+    let y = [%pop] in
+    a
+  ]
+  { ctte_entry = 1; ctte_exits = [2];
+    ctte_fragments =
+      [{ cttfe_id = 1; cttfe_has_input = false;
+         cttfe_outputs =
+           [{ cttee_id = (Some 2);
+              cttee_extension = true; cttee_bound_vars = [("b", None)] }
+           ];
+         cttfe_free_vars = ["a"]; cttfe_ext_bound_vars = [];
+         cttfe_code = [%expr let b = 4 in EXT_HOLE "2" ] };
+       { cttfe_id = 2; cttfe_has_input = true;
+         cttfe_outputs =
+           [{ cttee_id = None;
+              cttee_extension = false;
+              cttee_bound_vars = [("b", None); ("y", None)] }
+           ];
+         cttfe_free_vars = ["a"]; cttfe_ext_bound_vars = [];
+         cttfe_code = [%expr let y = INPUT_HOLE in EVAL_HOLE ("None", a) ] }
+      ]
+  }
+;;
+
 (* ****************************************************************************
    Wiring and cleanup
 *)

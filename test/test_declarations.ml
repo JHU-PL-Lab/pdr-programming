@@ -120,6 +120,24 @@ add_declaration_generation_test
   ]
 ;;
 
+add_declaration_generation_test
+  "continuation captures one variable, avoids another"
+  [%expr
+    let a : int = 4 in
+    let b : string = "5" in
+    let x = [%pop] in
+    let c : char = 'c' in
+    let y = [%pop] in
+    (a,c)
+  ]
+  [%str
+    type continuation =
+      | Continuation_0
+      | Continuation_1 of int
+      | Continuation_2 of int * char
+  ]
+;;
+
 (* ****************************************************************************
    Wiring and cleanup
 *)
