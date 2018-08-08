@@ -69,7 +69,8 @@ type fragment =
     (** A location to attribute to this fragment. *)
 
     fragment_free_variables: Var_set.t;
-    (** The set of variables which are free in this fragment. *)
+    (** The set of variables which are free in this fragment.  These variables
+        appear free in the body of the code that this fragment generates. *)
 
     fragment_externally_bound_variables: externally_bound_variable Var_map.t;
     (** The set of variables in this fragment which are bound by other fragments
