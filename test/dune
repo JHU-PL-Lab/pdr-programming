@@ -11,6 +11,8 @@
     Test_a_normalization
     Test_continuation_transformer
     Test_declarations
+    Test_flow_analysis
+    Test_utils
   )
   (libraries
     oUnit

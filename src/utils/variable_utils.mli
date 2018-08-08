@@ -17,6 +17,7 @@ val fresh_variable_name : fresh_variable_context -> string
 module Longident_value :
 sig
   type t = Longident.t
+  val equal : t -> t -> bool
   val compare : t -> t -> int
   val pp : t Pp_utils.pretty_printer
   val show : t -> string

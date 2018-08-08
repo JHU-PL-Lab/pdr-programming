@@ -13,6 +13,7 @@
   (preprocess
     (pps
       ocaml-monadic
+      ppx_deriving.std
       ppx_tools_versioned.metaquot_406
     )
   )

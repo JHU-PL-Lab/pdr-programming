@@ -7,6 +7,7 @@ let all_tests =
   [ "A-normalization" >::: Test_a_normalization.tests;
     "Continuation Transformer" >::: Test_continuation_transformer.tests;
     "Declaration Generation" >::: Test_declarations.tests;
+    "Flow Analysis" >::: Test_flow_analysis.tests;
   ];;
 
 let () =

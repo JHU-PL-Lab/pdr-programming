@@ -8,6 +8,7 @@ open Parsetree;;
 open Pdr_programming_continuation_extensions;;
 open Pdr_programming_utils;;
 open Pdr_programming_utils.Variable_utils;;
+open Test_utils;;
 
 open Fragment_types;;
 
@@ -22,16 +23,11 @@ let add_test test = accumulated_tests := test::!accumulated_tests;;
    Expectation types
 *)
 
-let _ident_to_string i =
-  match i with
-  | Longident.Lident s -> s
-  | _ -> raise @@ Utils.Invariant_failure "Don't know how to convert this!"
-;;
 let _bound_vars_map_to_list (x : core_type option Var_map.t)
   : (string * core_type option) list =
   x
   |> Var_map.enum
-  |> Enum.map (fun (k,v) -> (_ident_to_string k, v))
+  |> Enum.map (fun (k,v) -> (string_of_ident k, v))
   |> List.of_enum
 ;;
 let _list_sorted_pervasive_eq a b =
@@ -119,14 +115,14 @@ let convert_fragment (fragment : fragment)
     cttfe_free_vars =
       fragment.fragment_free_variables
       |> Var_set.enum
-      |> Enum.map _ident_to_string
+      |> Enum.map string_of_ident
       |> List.of_enum;
     cttfe_ext_bound_vars =
       fragment.fragment_externally_bound_variables
       |> Var_map.enum
       |> Enum.map
         (fun (k,ebv) ->
-           (_ident_to_string k, convert_uid ebv.ebv_binder, ebv.ebv_type))
+           (string_of_ident k, convert_uid ebv.ebv_binder, ebv.ebv_type))
       |> List.of_enum;
     cttfe_code =
       fragment.fragment_code

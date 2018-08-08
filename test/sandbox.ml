@@ -108,14 +108,14 @@ let main () =
   let open Fragment_types in
   (* let open Variable_utils in *)
   (* let rec loop n e =
-    if n = 1 then e else
+     if n = 1 then e else
       loop (n-1) [%expr let x = [%pop] in [%e e]]
-  in
-  let expr = loop 5 [%expr x] in
-  let result =
-    expr
-    |> Transformer.do_transform
-    |> Transformer_monad.run
+     in
+     let expr = loop 5 [%expr x] in
+     let result =
+     expr
+     |> Transformer.do_transform
+     |> Transformer_monad.run
       (Fragment_uid.new_context ())
       (new_fresh_variable_context ~prefix:"var" ())
       (fun (name,_) -> name.txt = "pop")
@@ -151,10 +151,46 @@ let main () =
 
 (* main ();; *)
 
-print_endline @@
-Pp_utils.pp_to_string (Pprintast.structure) @@
-(
-   [%str
-     type t = Foo of (int)
-   ]
-);;
+let main2 () =
+  let open Fragment_types in
+  let open Variable_utils in
+  let string_of_ident i =
+    match i with
+    | Longident.Lident s -> s
+    | _ -> raise @@ Utils.Invariant_failure "Don't know how to convert this!"
+  in
+  let int_of_uid uid =
+    int_of_string @@ Fragment_uid.show uid
+  in
+  let code = [%expr let x = 4 in let y = [%pop] in x] in
+  let result_group =
+    code
+    |> Transformer.do_transform
+    |> Transformer_monad.run
+      (Fragment_uid.new_context ())
+      (new_fresh_variable_context ~prefix:"var" ())
+      (fun (name,_) -> name.txt = "pop")
+  in
+  let intermediates = Flow_analysis.determine_intermediates result_group in
+  let actual =
+    intermediates
+    |> Fragment_uid_map.enum
+    |> Enum.map
+      (fun (uid, ivs_set) ->
+         ( int_of_uid uid,
+           ivs_set
+           |> Flow_analysis.Intermediate_var_set.enum
+           |> Enum.map
+             (fun (var,binder_uid) ->
+                string_of_ident var,
+                int_of_uid binder_uid
+             )
+           |> List.of_enum
+         )
+      )
+    |> List.of_enum
+  in
+  actual
+;;
+
+main2 ();;

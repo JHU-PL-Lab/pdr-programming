@@ -39,6 +39,9 @@ struct
       let c = compare x1 y1 in
       if c = 0 then compare x2 y2 else c
   ;;
+  let equal (x : t) (y : t ) =
+    compare x y = 0
+  ;;
   let pp formatter (ident : t) =
     Format.pp_print_string formatter @@
     String.join "." @@
