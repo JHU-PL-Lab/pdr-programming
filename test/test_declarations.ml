@@ -37,14 +37,10 @@ let add_declaration_generation_test
           (fun (name,_) -> name.txt = "pop")
       in
       let spec =
-        Continuation_types.create_continuation_type_spec result_group
+        Continuation_types.create_continuation_type_spec
+          Location.none "continuation" result_group
       in
-      let type_decls =
-        Continuation_types.create_continuation_type_declarations
-          Location.none
-          "continuation"
-          spec
-      in
+      let type_decls = Continuation_types.create_continuation_types spec in
       let structure =
         type_decls
         |> List.map
@@ -70,9 +66,9 @@ add_declaration_generation_test
     x
   ]
   [%str
-    type continuation =
-      | Continuation_0
-      | Continuation_1
+    type 'a1_input continuation =
+      | Continuation_fragment_0
+      | Continuation_fragment_1 of 'a1_input
   ]
 ;;
 
@@ -84,9 +80,9 @@ add_declaration_generation_test
     y
   ]
   [%str
-    type continuation =
-      | Continuation_0
-      | Continuation_1 of int
+    type ('a2_ext_y_from_frag_1, 'a2_input) continuation =
+      | Continuation_fragment_1
+      | Continuation_fragment_2 of 'a2_ext_y_from_frag_1 * 'a2_input
   ]
 ;;
 
@@ -99,9 +95,11 @@ add_declaration_generation_test
     (y,z)
   ]
   [%str
-    type continuation =
-      | Continuation_0
-      | Continuation_1 of int * int
+    type ('a5_ext_y_from_frag_2, 'a5_ext_z_from_frag_2, 'a5_input)
+      continuation =
+      | Continuation_fragment_2
+      | Continuation_fragment_5 of
+          'a5_ext_y_from_frag_2 * 'a5_ext_z_from_frag_2 * 'a5_input
   ]
 ;;
 
@@ -114,9 +112,9 @@ add_declaration_generation_test
     y
   ]
   [%str
-    type continuation =
-      | Continuation_0
-      | Continuation_1 of int
+    type ('a3_ext_y_from_frag_2, 'a3_input) continuation =
+      | Continuation_fragment_2
+      | Continuation_fragment_3 of 'a3_ext_y_from_frag_2 * 'a3_input
   ]
 ;;
 
@@ -131,10 +129,14 @@ add_declaration_generation_test
     (a,c)
   ]
   [%str
-    type continuation =
-      | Continuation_0
-      | Continuation_1 of int
-      | Continuation_2 of int * char
+    type
+      ('a4_input, 'a4_inv_a_from_frag_2, 'a7_ext_a_from_frag_2,
+       'a7_ext_c_from_frag_4, 'a7_input)
+      continuation =
+      | Continuation_fragment_2
+      | Continuation_fragment_4 of 'a4_inv_a_from_frag_2 * 'a4_input
+      | Continuation_fragment_7 of
+          'a7_ext_a_from_frag_2 * 'a7_ext_c_from_frag_4 * 'a7_input
   ]
 ;;
 
