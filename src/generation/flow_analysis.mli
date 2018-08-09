@@ -44,10 +44,18 @@
 open Batteries;;
 open Jhupllib;;
 
+open Parsetree;;
+
 open Pdr_programming_continuation_extensions.Fragment_types;;
 open Pdr_programming_utils.Variable_utils;;
 
-type intermediate_var = Longident_value.t * Fragment_uid.t;;
+type intermediate_var =
+  { iv_name : Longident_value.t;
+    iv_binder : Fragment_uid.t;
+    iv_type : core_type option;
+    iv_bind_loc : Location.t;
+  }
+;;
 
 module Intermediate_var : sig
   type t = intermediate_var;;

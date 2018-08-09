@@ -79,8 +79,8 @@ add_declaration_generation_test
     y
   ]
   [%str
-    type 'a2_ext_y_from_frag_1 continuation =
-      | Continuation_fragment_2 of 'a2_ext_y_from_frag_1
+    type continuation =
+      | Continuation_fragment_2 of int
   ]
 ;;
 
@@ -93,9 +93,8 @@ add_declaration_generation_test
     (y,z)
   ]
   [%str
-    type ('a5_ext_y_from_frag_2, 'a5_ext_z_from_frag_2)
-      continuation =
-      | Continuation_fragment_5 of 'a5_ext_y_from_frag_2 * 'a5_ext_z_from_frag_2
+    type continuation =
+      | Continuation_fragment_5 of int * int
   ]
 ;;
 
@@ -108,8 +107,8 @@ add_declaration_generation_test
     y
   ]
   [%str
-    type 'a3_ext_y_from_frag_2 continuation =
-      | Continuation_fragment_3 of 'a3_ext_y_from_frag_2
+    type continuation =
+      | Continuation_fragment_3 of int
   ]
 ;;
 
@@ -124,11 +123,9 @@ add_declaration_generation_test
     (a,c)
   ]
   [%str
-    type
-      ('a4_inv_a_from_frag_2, 'a7_ext_a_from_frag_2, 'a7_ext_c_from_frag_4)
-      continuation =
-      | Continuation_fragment_4 of 'a4_inv_a_from_frag_2
-      | Continuation_fragment_7 of 'a7_ext_a_from_frag_2 * 'a7_ext_c_from_frag_4
+    type continuation =
+      | Continuation_fragment_4 of int
+      | Continuation_fragment_7 of int * char
   ]
 ;;
 

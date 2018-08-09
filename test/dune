@@ -35,6 +35,7 @@
   (name sandbox)
   (modules
     Sandbox
+    Sandbox_crud
   )
   (libraries
     oUnit

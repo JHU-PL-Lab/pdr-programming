@@ -47,9 +47,9 @@ let add_determine_intermediates_test
                ivs_set
                |> Flow_analysis.Intermediate_var_set.enum
                |> Enum.map
-                 (fun (var,binder_uid) ->
-                    string_of_ident var,
-                    int_of_uid binder_uid
+                 (fun iv ->
+                    string_of_ident iv.Flow_analysis.iv_name,
+                    int_of_uid iv.Flow_analysis.iv_binder
                  )
                |> List.of_enum
              )

@@ -1,12 +1,14 @@
 open Batteries;;
 open Jhupllib;;
 
-open Asttypes;;
-open Parsetree;;
+(* open Asttypes;; *)
+(* open Parsetree;; *)
 
 open Pdr_programming_continuation_extensions;;
-open Pdr_programming_transformation;;
+open Pdr_programming_generation;;
 open Pdr_programming_utils;;
+
+open Sandbox_crud;;
 
 let fabricate_group_for_linear_let n =
   let open Fragment_types in
@@ -105,29 +107,28 @@ let fabricate_group_for_linear_let n =
 ;;
 
 let main () =
+  let expr =
+    [%expr
+      let y : int = 4 in
+      let x = [%pop] in
+      y
+    ]
+  in
   let open Fragment_types in
-  (* let open Variable_utils in *)
-  (* let rec loop n e =
-     if n = 1 then e else
-      loop (n-1) [%expr let x = [%pop] in [%e e]]
-     in
-     let expr = loop 5 [%expr x] in
-     let result =
-     expr
-     |> Transformer.do_transform
-     |> Transformer_monad.run
+  let open Variable_utils in
+  let result_group =
+    expr
+    |> Transformer.do_transform
+    |> Transformer_monad.run
       (Fragment_uid.new_context ())
       (new_fresh_variable_context ~prefix:"var" ())
       (fun (name,_) -> name.txt = "pop")
-     in *)
-  let result = fabricate_group_for_linear_let 40001 in
-  let spec = Continuation_types.create_continuation_type_spec result in
-  let type_decls =
-    Continuation_types.create_continuation_type_declarations
-      Location.none
-      "continuation"
-      spec
   in
+  let spec =
+    Continuation_types.create_continuation_type_spec
+      Location.none "continuation" result_group
+  in
+  let type_decls = Continuation_types.create_continuation_types spec in
   let structure =
     type_decls
     |> List.map
@@ -137,21 +138,19 @@ let main () =
          }
       )
   in
-  let uids = List.of_enum @@ Fragment_uid_map.keys result.fg_graph in
-  print_endline @@
-  Pp_utils.pp_to_string (Pprintast.toplevel_phrase) (Ptop_def structure);
-  print_endline @@
-  Pp_utils.pp_to_string (Pprintast.expression) @@
-  Continuation_types.call_constructor
-    Location.none
-    spec
-    (List.nth uids 20000)
-    []
+  print_endline @@ Pp_utils.pp_to_string (Sandbox_crud.pp_structure) structure;
+  print_endline @@ Pp_utils.pp_to_string (Pprintast.structure) structure
 ;;
 
-(* main ();; *)
+main ();;
 
-print_endline @@ Pp_utils.pp_to_string (Printast.structure 0) @@
+print_endline @@ Pp_utils.pp_to_string (Sandbox_crud.pp_structure) @@
 [%str
-  type 'a foo = Bar | Baz of 'a
+  type foo =
+      Bar of (int)
+];;
+print_endline @@ Pp_utils.pp_to_string (Pprintast.structure) @@
+[%str
+  type foo =
+      Bar of (int)
 ];;

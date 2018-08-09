@@ -1,13 +1,29 @@
 open Batteries;;
 open Jhupllib;;
 
+open Parsetree;;
+
 open Pdr_programming_continuation_extensions.Fragment_types;;
 open Pdr_programming_utils.Variable_utils;;
 
-type intermediate_var = Longident_value.t * Fragment_uid.t;;
+type intermediate_var =
+  { iv_name : Longident_value.t;
+    iv_binder : Fragment_uid.t;
+    iv_type : core_type option
+        [@equal Pervasives.(=)] [@compare Pervasives.compare]
+        [@printer Pp_utils.pp_option Pprintast.core_type];
+    iv_bind_loc : Location.t
+        [@equal Pervasives.(=)] [@compare Pervasives.compare]
+        [@printer Location.print];
+  }
+[@@deriving eq, ord, show]
+;;
+let _ = show_intermediate_var;;
 
 module Intermediate_var = struct
-  type t = Longident_value.t * Fragment_uid.t [@@deriving eq, ord, show];;
+  type t = intermediate_var
+  [@@deriving eq, ord, show]
+  ;;
 end;;
 
 module Intermediate_var_set = struct
@@ -132,7 +148,14 @@ let determine_intermediates (group : fragment_group)
          let immediate_ivs =
            fragment.fragment_externally_bound_variables
            |> Var_map.values
-           |> Enum.map (fun ebv -> (ebv.ebv_variable, ebv.ebv_binder))
+           |> Enum.map
+             (fun ebv ->
+                { iv_name = ebv.ebv_variable;
+                  iv_binder = ebv.ebv_binder;
+                  iv_type = ebv.ebv_type;
+                  iv_bind_loc = ebv.ebv_bind_loc;
+                }
+             )
            |> Intermediate_var_set.of_enum
          in
          let ivs = Intermediate_var_set.union inductive_ivs immediate_ivs in
@@ -144,8 +167,8 @@ let determine_intermediates (group : fragment_group)
                 let new_ivs_for_parent =
                   ivs
                   |> Intermediate_var_set.filter
-                    (fun (_,binder_uid) ->
-                       not @@ Fragment_uid.equal binder_uid parent_uid
+                    (fun iv ->
+                       not @@ Fragment_uid.equal iv.iv_binder parent_uid
                     )
                 in
                 let parent_ivs =

@@ -10,6 +10,10 @@ open Pdr_programming_utils.Big_variant;;
 open Pdr_programming_utils.Type_utils;;
 open Pdr_programming_utils.Variable_utils;;
 
+open Flow_analysis;;
+
+exception Unannotated_continuation_variable of Longident.t * Location.t;;
+
 type continuation_type_spec =
   { cts_bvs : big_variant_spec;
     cts_uid_map : int Fragment_uid_map.t;
@@ -59,21 +63,20 @@ let create_continuation_type_constructors
              uid intermediate_var_map
          in
          let constructor_params =
-           let external_binding_data =
+           let external_binding_types : core_type Enum.t  =
              fragment.fragment_externally_bound_variables
              |> Var_map.values
              |> Enum.map
                (fun ebv ->
-                  let name =
-                    Printf.sprintf "ext_%s_from_frag_%s"
-                      (_unident ebv.ebv_variable)
-                      (Fragment_uid.show ebv.ebv_binder)
-                  in
-                  let loc = ebv.ebv_bind_loc in
-                  (name, loc)
+                  match ebv.ebv_type with
+                  | Some typ -> typ
+                  | None ->
+                    raise @@
+                    Unannotated_continuation_variable(
+                      ebv.ebv_variable, ebv.ebv_bind_loc)
                )
            in
-           let intermediate_variable_data =
+           let intermediate_variable_types : core_type Enum.t =
              intermediate_vars
              |> Flow_analysis.Intermediate_var_set.enum
              |> Enum.filter
@@ -81,43 +84,41 @@ let create_continuation_type_constructors
                   external binding set.  We already have a copy of that value
                   from our external binding, so there's no sense in capturing
                   another. *)
-               (fun (varname, binder_uid) ->
+               (fun iv ->
                   let ebv_map = fragment.fragment_externally_bound_variables in
                   not @@
-                  (Var_map.mem varname ebv_map &&
+                  (Var_map.mem iv.iv_name ebv_map &&
                    Fragment_uid.equal
-                     (Var_map.find varname ebv_map).ebv_binder
-                     binder_uid
+                     (Var_map.find iv.iv_name ebv_map).ebv_binder
+                     iv.iv_binder
                   )
                )
              |> Enum.map
-               (fun (varname, binder_uid) ->
-                  let name =
-                    Printf.sprintf "inv_%s_from_frag_%s"
-                      (_unident varname) (Fragment_uid.show binder_uid)
-                  in
-                  let loc = fragment.fragment_loc in
-                  (name, loc)
+               (fun iv ->
+                  match iv.iv_type with
+                  | Some typ -> typ
+                  | None ->
+                    raise @@
+                    Unannotated_continuation_variable(
+                      iv.iv_name, iv.iv_bind_loc)
                )
            in
-           let param_data : (string * Location.t) list =
-             List.enum [external_binding_data;
-                        intermediate_variable_data;
+           let param_types =
+             List.enum [external_binding_types;
+                        intermediate_variable_types;
                        ]
              |> Enum.concat
              |> List.of_enum
            in
-           param_data
+           (param_types : core_type list)
+           (* Sometimes, type annotations are parsed as "Ptyp_poly" types with
+              no polymorphic variables.  This clutters the AST and messes with
+              testing, so let's remove them. *)
            |> List.map
-             (fun (name,loc) ->
-                let param_name =
-                  Printf.sprintf "a%s_%s"
-                    (Fragment_uid.show fragment.fragment_uid) name
-                in
-                { ptyp_desc = Ptyp_var param_name;
-                  ptyp_loc = loc;
-                  ptyp_attributes = [];
-                }
+             (fun typ ->
+                match typ.ptyp_desc with
+                | Ptyp_poly([], typ') -> typ'
+                | _ -> typ
              )
          in
          { pcd_name = mkloc constructor_name fragment.fragment_loc;

@@ -10,6 +10,8 @@ open Parsetree;;
 
 open Pdr_programming_continuation_extensions.Fragment_types;;
 
+exception Unannotated_continuation_variable of Longident.t * Location.t;;
+
 type continuation_type_spec;;
 
 val create_continuation_type_spec :
