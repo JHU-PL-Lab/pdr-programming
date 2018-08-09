@@ -25,15 +25,27 @@ let _unident (x : Longident.t) : string =
 let create_continuation_type_constructors
     (group : fragment_group)
   : constructor_declaration list * int Fragment_uid_map.t =
-  let keys = List.of_enum @@ Fragment_uid_map.keys group.fg_graph in
+  (* Get all of the UIDs for which we need to make continuations.  The entry
+     fragment does not count: we do not "continue" into the entry fragment;
+     we start there.  (This works nicely for typechecking too, since the entry
+     fragment is the only fragment with no input hole.
+  *)
+  let continuation_uids =
+    group.fg_graph
+    |> Fragment_uid_map.keys
+    |> Enum.filter (fun uid -> not @@ Fragment_uid.equal uid group.fg_entry)
+    |> List.of_enum
+  in
   let uid_map =
-    ( List.enum keys, 0 --^ Fragment_uid_map.cardinal group.fg_graph)
+    ( List.enum continuation_uids,
+      0 --^ Fragment_uid_map.cardinal group.fg_graph
+    )
     |> Enum.combine
     |> Fragment_uid_map.of_enum
   in
   let intermediate_var_map = Flow_analysis.determine_intermediates group in
   let constructors =
-    keys
+    continuation_uids
     |> List.enum
     |> Enum.map
       (fun uid ->
@@ -88,16 +100,9 @@ let create_continuation_type_constructors
                   (name, loc)
                )
            in
-           let input_hole_data =
-             match fragment.fragment_input_hole with
-             | Some inhd ->
-               Enum.singleton ("input", inhd.inhd_loc)
-             | None -> Enum.empty()
-           in
            let param_data : (string * Location.t) list =
              List.enum [external_binding_data;
                         intermediate_variable_data;
-                        input_hole_data;
                        ]
              |> Enum.concat
              |> List.of_enum

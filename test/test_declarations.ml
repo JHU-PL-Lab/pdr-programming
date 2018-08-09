@@ -66,9 +66,8 @@ add_declaration_generation_test
     x
   ]
   [%str
-    type 'a1_input continuation =
-      | Continuation_fragment_0
-      | Continuation_fragment_1 of 'a1_input
+    type continuation =
+      | Continuation_fragment_1
   ]
 ;;
 
@@ -80,9 +79,8 @@ add_declaration_generation_test
     y
   ]
   [%str
-    type ('a2_ext_y_from_frag_1, 'a2_input) continuation =
-      | Continuation_fragment_1
-      | Continuation_fragment_2 of 'a2_ext_y_from_frag_1 * 'a2_input
+    type 'a2_ext_y_from_frag_1 continuation =
+      | Continuation_fragment_2 of 'a2_ext_y_from_frag_1
   ]
 ;;
 
@@ -95,11 +93,9 @@ add_declaration_generation_test
     (y,z)
   ]
   [%str
-    type ('a5_ext_y_from_frag_2, 'a5_ext_z_from_frag_2, 'a5_input)
+    type ('a5_ext_y_from_frag_2, 'a5_ext_z_from_frag_2)
       continuation =
-      | Continuation_fragment_2
-      | Continuation_fragment_5 of
-          'a5_ext_y_from_frag_2 * 'a5_ext_z_from_frag_2 * 'a5_input
+      | Continuation_fragment_5 of 'a5_ext_y_from_frag_2 * 'a5_ext_z_from_frag_2
   ]
 ;;
 
@@ -112,9 +108,8 @@ add_declaration_generation_test
     y
   ]
   [%str
-    type ('a3_ext_y_from_frag_2, 'a3_input) continuation =
-      | Continuation_fragment_2
-      | Continuation_fragment_3 of 'a3_ext_y_from_frag_2 * 'a3_input
+    type 'a3_ext_y_from_frag_2 continuation =
+      | Continuation_fragment_3 of 'a3_ext_y_from_frag_2
   ]
 ;;
 
@@ -130,13 +125,10 @@ add_declaration_generation_test
   ]
   [%str
     type
-      ('a4_input, 'a4_inv_a_from_frag_2, 'a7_ext_a_from_frag_2,
-       'a7_ext_c_from_frag_4, 'a7_input)
+      ('a4_inv_a_from_frag_2, 'a7_ext_a_from_frag_2, 'a7_ext_c_from_frag_4)
       continuation =
-      | Continuation_fragment_2
-      | Continuation_fragment_4 of 'a4_inv_a_from_frag_2 * 'a4_input
-      | Continuation_fragment_7 of
-          'a7_ext_a_from_frag_2 * 'a7_ext_c_from_frag_4 * 'a7_input
+      | Continuation_fragment_4 of 'a4_inv_a_from_frag_2
+      | Continuation_fragment_7 of 'a7_ext_a_from_frag_2 * 'a7_ext_c_from_frag_4
   ]
 ;;
 
