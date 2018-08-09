@@ -6,7 +6,7 @@ open Asttypes;;
 open Parsetree;;
 
 open Pdr_programming_continuation_extensions;;
-open Pdr_programming_transformation;;
+open Pdr_programming_generation;;
 open Pdr_programming_utils;;
 open Test_utils;;
 

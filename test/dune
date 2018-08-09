@@ -19,7 +19,7 @@
     oUnit
     pdr-programming.a-normalization
     pdr-programming.continuation-extensions
-    pdr-programming.transformation
+    pdr-programming.generation
     pds-reachability
   )
   (preprocess
@@ -40,7 +40,7 @@
     oUnit
     pdr-programming.a-normalization
     pdr-programming.continuation-extensions
-    pdr-programming.transformation
+    pdr-programming.generation
     pds-reachability
   )
   (preprocess

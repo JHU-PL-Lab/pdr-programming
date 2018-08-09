@@ -1,7 +1,7 @@
 (library
-  (name pdr_programming_transformation)
-  (public_name pdr-programming.transformation)
-  (synopsis "Transformation tools for the PDR programming library.")
+  (name pdr_programming_generation)
+  (public_name pdr-programming.generation)
+  (synopsis "Code generation tools for the PDR programming library.")
   (libraries
     batteries
     compiler-libs.common
