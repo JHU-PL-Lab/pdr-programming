@@ -26,6 +26,10 @@ let pow b e =
   loop 1 e
 ;;
 
+let constr_name_func i =
+  Printf.sprintf "C%d" i
+;;
+
 let wrapper_name_func i s =
   Printf.sprintf "W%d_%s" i s
 ;;
@@ -77,7 +81,19 @@ let make_constant_type_decl
   make_type_decl
     type_name
     constructor_count
-    (fun i -> (Printf.sprintf "C%d" (i + start_index), []))
+    (fun i -> (constr_name_func (i + start_index), []))
+;;
+
+let make_arg_type_decl
+    (type_name : string)
+    (start_index : int)
+    (constructor_count : int)
+    (arg_func : int -> core_type list)
+  : type_declaration =
+  make_type_decl
+    type_name
+    constructor_count
+    (fun i -> (constr_name_func (i + start_index), arg_func (i + start_index)))
 ;;
 
 let make_wrapper_type_decl
@@ -256,6 +272,29 @@ add_big_variant_type_test
      )
   )
 ;;
+
+add_big_variant_type_test
+  "3 non-constant variant constructor"
+  [%str type foo = A of int | B of int | C of int]
+  [%str type foo = A of int | B of int | C of int]
+;;
+
+let type_fn i =
+  (List.take (i mod 3 + 1)
+     [ [%type: int]; [%type: string]; [%type: int list] ]
+  )
+in
+add_big_variant_type_test
+  "201 non-constant variant constructor"
+  (structure_of_type_decls
+     [ make_arg_type_decl "foo" 0 260 type_fn ]
+  )
+  (structure_of_type_decls
+     [ make_arg_type_decl "foo_000" 0 200 type_fn;
+       make_arg_type_decl "foo_200" 200 60 type_fn;
+       make_wrapper_type_decl "foo" ~name_digits:3 ~level:1 0 2;
+     ]
+  )
 
 (* ****************************************************************************
    Wiring and cleanup
