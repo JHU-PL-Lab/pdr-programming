@@ -1,5 +1,5 @@
 open Batteries;;
-open Jhupllib;;
+(* open Jhupllib;; *)
 open OUnit2;;
 
 open Asttypes;;
@@ -9,6 +9,8 @@ open Pdr_programming_continuation_extensions;;
 open Pdr_programming_utils;;
 open Pdr_programming_utils.Variable_utils;;
 open Test_utils;;
+
+module Utils = Jhupllib.Utils;;
 
 open Fragment_types;;
 

@@ -9,6 +9,7 @@
   (modules
     Test
     Test_a_normalization
+    Test_big_variant
     Test_continuation_transformer
     Test_declarations
     Test_flow_analysis
