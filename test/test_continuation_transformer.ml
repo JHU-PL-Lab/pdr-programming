@@ -207,7 +207,7 @@ let add_fragment_metadata_bind_test
   : unit =
   add_test (name >:: fun _ ->
       let result =
-        Fragment_constructors.fragment_metadata_bind
+        Fragment_constructors_utils.fragment_metadata_bind
           Location.none binder_uid bindings fragment
       in
       let cactual = canonicalize_expected_fragment @@ convert_fragment result in
@@ -226,7 +226,9 @@ let add_embed_nonbind_test
     (expected : continuation_transform_test_expectation)
   : unit =
   add_test (name >:: fun _ ->
-      let result = Fragment_constructors.embed_nonbind Location.none g1 g2 in
+      let result =
+        Fragment_constructors_utils.embed_nonbind Location.none g1 g2
+      in
       let cactual =
         canonicalize_expected_group @@ convert_fragment_group result
       in
