@@ -88,6 +88,10 @@ fragment group has a set of invariant properties:
   * All non-entry fragments in a group have input holes.
 *)
 
+(*******************************************************************************
+   Constructor-aware utility functions.
+*)
+
 (* Sequentializes the execution of multiple groups.  If all groups are pure,
    this is as simple as generating expressions for each group and passing them
    to a final creation routine.  Impure groups are addressed by let-binding the
