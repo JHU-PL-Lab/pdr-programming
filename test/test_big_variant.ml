@@ -7,6 +7,7 @@ open Parsetree;;
 
 module Big_variant = Pdr_programming_utils.Big_variant;;
 module Pdr_utils = Pdr_programming_utils.Utils;;
+open Pdr_programming_utils.Type_utils;;
 
 (* ****************************************************************************
    Initialization and tooling
@@ -34,6 +35,17 @@ let wrapper_name_func i s =
   Printf.sprintf "W%d_%s" i s
 ;;
 
+let type_param_name_func i =
+  "a" ^ string_of_int i
+;;
+
+let type_param_func i =
+  { ptyp_desc = Ptyp_var (type_param_name_func i);
+    ptyp_loc = Location.none;
+    ptyp_attributes = [];
+  }
+;;
+
 let structure_of_type_decls type_decls =
   type_decls
   |> List.map (fun type_decl ->
@@ -48,22 +60,47 @@ let make_type_decl
     (constructor_count : int)
     (constructor_spec_fn : int -> string * core_type list)
   : type_declaration =
-  let constructor_declarations =
+  let constructor_declarations, tparam_names =
     0 --^ constructor_count
     |> Enum.map
       (fun i ->
          let name, param_types = constructor_spec_fn i in
-         { pcd_name = Location.mkloc name Location.none;
-           pcd_args = Pcstr_tuple param_types;
-           pcd_res = None;
-           pcd_loc = Location.none;
-           pcd_attributes = [];
-         }
+         let constructor =
+           { pcd_name = Location.mkloc name Location.none;
+             pcd_args = Pcstr_tuple param_types;
+             pcd_res = None;
+             pcd_loc = Location.none;
+             pcd_attributes = [];
+           }
+         in
+         let tparam_names =
+           param_types
+           |> List.map tvars_of_type
+           |> List.fold_left Tvar_set.union Tvar_set.empty
+         in
+         (constructor, tparam_names)
+      )
+    |> List.of_enum
+    |> List.split
+  in
+  let tparams =
+    tparam_names
+    |> List.fold_left Tvar_set.union Tvar_set.empty
+    |> Tvar_set.enum
+    |> Enum.map
+      (fun name ->
+         let typ =
+           { ptyp_desc = Ptyp_var name;
+             ptyp_loc = Location.none;
+             ptyp_attributes = [];
+           }
+         in
+         (typ, Invariant)
       )
     |> List.of_enum
   in
   { ptype_name = Location.mkloc type_name Location.none;
-    ptype_params = [];
+    ptype_params = tparams;
     ptype_cstrs = [];
     ptype_kind = Ptype_variant constructor_declarations;
     ptype_private = Public;
@@ -96,21 +133,49 @@ let make_arg_type_decl
     (fun i -> (constr_name_func (i + start_index), arg_func (i + start_index)))
 ;;
 
+let make_tparam_type_decl
+    (type_name : string)
+    (start_index : int)
+    (constructor_count : int)
+  : type_declaration =
+  make_arg_type_decl
+    type_name
+    start_index
+    constructor_count
+    (fun i -> [ type_param_func i ] )
+;;
+
 let make_wrapper_type_decl
     (type_name : string)
     ~(name_digits : int)
     ~(level : int)
+    ?param_counts:(param_counts_list=([] : int list))
     (start_index : int)
     (count : int)
   : type_declaration =
   make_type_decl
     type_name
     count
-    (fun i ->
+    (let param_counts = Array.of_list param_counts_list in
+     fun i ->
        let index = start_index + i * pow 200 level in
        let index_str = string_of_int index in
        let padded_index_str = Pdr_utils.pad_string name_digits '0' index_str in
        let name = Printf.sprintf "W%d_%s" level padded_index_str in
+       let arg_type_param_count, arg_type_start_index =
+         if i < Array.length param_counts then
+           ( param_counts.(i),
+             List.fold_left (+) 0 @@ List.take i param_counts_list
+           )
+         else
+           (0, 0)
+       in
+       let arg_type_params =
+         arg_type_start_index --^ (arg_type_start_index + arg_type_param_count)
+         |> Enum.map type_param_func
+         |> List.of_enum
+         |> List.sort Pervasives.compare
+       in
        let arg_types =
          [ { ptyp_desc =
                Ptyp_constr(
@@ -118,7 +183,7 @@ let make_wrapper_type_decl
                    (Longident.Lident(
                        Printf.sprintf "%s_%s" type_name padded_index_str))
                    Location.none,
-                 []);
+                 arg_type_params);
              ptyp_loc = Location.none;
              ptyp_attributes = [];
            }
@@ -138,13 +203,9 @@ let add_big_variant_type_test
     (expected : structure)
   : unit =
   add_test (name >:: fun _ ->
-      let type_name, type_constructors =
+      let type_decl =
         match input with
-        | [ { pstr_desc =
-                Pstr_type(_, [{ ptype_name = { txt = name; _ };
-                                ptype_kind = Ptype_variant(cs); _ }]); _
-            } ] ->
-          name, cs
+        | [ { pstr_desc = Pstr_type(_, [type_decl]); _ } ] -> type_decl
         | _ ->
           raise @@
           Utils.Invariant_failure "Expected variant type declaration in input"
@@ -152,11 +213,9 @@ let add_big_variant_type_test
       let spec =
         Big_variant.create_big_variant
           ~wrapper_constructor_name_fn:wrapper_name_func
-          type_name type_constructors
+          type_decl
       in
-      let types =
-        Big_variant.create_big_variant_types Location.none spec
-      in
+      let types = Big_variant.create_big_variant_types spec in
       let expected_type_decls =
         expected
         |> List.map
@@ -286,15 +345,36 @@ let type_fn i =
 in
 add_big_variant_type_test
   "201 non-constant variant constructor"
-  (structure_of_type_decls
-     [ make_arg_type_decl "foo" 0 260 type_fn ]
-  )
+  (structure_of_type_decls [ make_arg_type_decl "foo" 0 260 type_fn ])
   (structure_of_type_decls
      [ make_arg_type_decl "foo_000" 0 200 type_fn;
        make_arg_type_decl "foo_200" 200 60 type_fn;
        make_wrapper_type_decl "foo" ~name_digits:3 ~level:1 0 2;
      ]
   )
+;;
+
+add_big_variant_type_test
+  "50 parametric variant constructor"
+  (structure_of_type_decls [ make_tparam_type_decl "foo" 0 50 ])
+  (structure_of_type_decls [ make_tparam_type_decl "foo" 0 50 ])
+;;
+
+add_big_variant_type_test
+  "250 parametric variant constructor"
+  (structure_of_type_decls [ make_tparam_type_decl "foo" 0 250 ])
+  (structure_of_type_decls
+     [ make_tparam_type_decl "foo_000" 0 200;
+       make_tparam_type_decl "foo_200" 200 50;
+       make_wrapper_type_decl
+         "foo"
+         ~name_digits:3
+         ~level:1
+         ~param_counts:[200;50]
+         0 2;
+     ]
+  )
+;;
 
 (* ****************************************************************************
    Wiring and cleanup

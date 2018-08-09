@@ -36,7 +36,10 @@ type big_variant_spec;;
    Creates a specification for a "big variant".  This is a data structure which
    can be used to create type definitions for a series of wrapper variant types
    as well as to generate expressions which construct those wrappers and
-   patterns which match them.
+   patterns which match them.  That is, provided an idealized type declaration
+   of a variant with a large number of constructors, this function generates a
+   data structure which can be used to implement an encoding of that idealized
+   type.
 
    The wrapper prefix function accepts two arguments -- the integer index of the
    level of the wrapper and a string indicating the zero-padded index of a
@@ -45,8 +48,7 @@ type big_variant_spec;;
 val create_big_variant :
     ?constructors_per_level:int ->
     ?wrapper_constructor_name_fn:(int -> string -> string) ->
-    string ->
-    constructor_declaration list ->
+    type_declaration ->
     big_variant_spec
 ;;
 
@@ -55,7 +57,7 @@ val create_big_variant :
    types.  These declarations effectively encode the big variant type in OCaml.
 *)
 val create_big_variant_types :
-  Location.t -> big_variant_spec -> type_declaration list
+  big_variant_spec -> type_declaration list
 ;;
 
 (**

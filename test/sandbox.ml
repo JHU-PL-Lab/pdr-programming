@@ -151,46 +151,7 @@ let main () =
 
 (* main ();; *)
 
-let main2 () =
-  let open Fragment_types in
-  let open Variable_utils in
-  let string_of_ident i =
-    match i with
-    | Longident.Lident s -> s
-    | _ -> raise @@ Utils.Invariant_failure "Don't know how to convert this!"
-  in
-  let int_of_uid uid =
-    int_of_string @@ Fragment_uid.show uid
-  in
-  let code = [%expr let x = 4 in let y = [%pop] in x] in
-  let result_group =
-    code
-    |> Transformer.do_transform
-    |> Transformer_monad.run
-      (Fragment_uid.new_context ())
-      (new_fresh_variable_context ~prefix:"var" ())
-      (fun (name,_) -> name.txt = "pop")
-  in
-  let intermediates = Flow_analysis.determine_intermediates result_group in
-  let actual =
-    intermediates
-    |> Fragment_uid_map.enum
-    |> Enum.map
-      (fun (uid, ivs_set) ->
-         ( int_of_uid uid,
-           ivs_set
-           |> Flow_analysis.Intermediate_var_set.enum
-           |> Enum.map
-             (fun (var,binder_uid) ->
-                string_of_ident var,
-                int_of_uid binder_uid
-             )
-           |> List.of_enum
-         )
-      )
-    |> List.of_enum
-  in
-  actual
-;;
-
-main2 ();;
+print_endline @@ Pp_utils.pp_to_string (Printast.structure 0) @@
+[%str
+  type 'a foo = Bar | Baz of 'a
+];;
