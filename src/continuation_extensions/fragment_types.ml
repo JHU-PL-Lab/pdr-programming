@@ -60,6 +60,10 @@ type externally_bound_variable =
   }
 ;;
 
+(* FIXME: ebv_variable should have type string unless we think we're going to
+   support local module definitions somehow.  We can't bind compound Longidents
+   with patterns. *)
+
 (** The type of a code fragment. *)
 type fragment =
   { fragment_uid : Fragment_uid.t;

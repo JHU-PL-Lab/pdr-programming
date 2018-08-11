@@ -142,15 +142,14 @@ let main () =
   print_endline @@ Pp_utils.pp_to_string (Pprintast.structure) structure
 ;;
 
-main ();;
+(* main ();; *)
 
-print_endline @@ Pp_utils.pp_to_string (Sandbox_crud.pp_structure) @@
-[%str
-  type foo =
-      Bar of (int)
-];;
-print_endline @@ Pp_utils.pp_to_string (Pprintast.structure) @@
-[%str
-  type foo =
-      Bar of (int)
-];;
+print_endline @@ Pp_utils.pp_to_string Pprintast.structure @@
+Continuation_code.generate_code_from_function
+  [%expr
+    fun (a : string) b ->
+      let x : int = 5 in
+      let y = [%pop] in
+      (x,a)
+  ]
+;;
