@@ -144,12 +144,30 @@ let main () =
 
 (* main ();; *)
 
-print_endline @@ Pp_utils.pp_to_string Pprintast.structure @@
-Continuation_code.generate_code_from_function
+let e =
   [%expr
-    fun (a : string) b ->
-      let x : int = 5 in
-      let y = [%pop] in
-      (x,a)
+    fun () ->
+      let (x : stack_element) = [%pop] in
+      let (y : stack_element) = [%pop] in
+      let (z : stack_element) = [%pop] in
+      [z;y;x]
   ]
+;;
+
+(* prerr_string @@ Fragment_pp.string_of_fragment_group @@
+(Transformer_monad.run
+   (Fragment_types.Fragment_uid.new_context ())
+   (Variable_utils.new_fresh_variable_context ())
+   (fun ext -> (fst ext).txt = "pop")
+   (Transformer.do_transform e)
+);
+prerr_string "\n"; *)
+
+print_endline @@ Pp_utils.pp_to_string Pprintast.structure @@
+[%str
+  type stack_element = Num of int | Count of int
+];;
+
+print_endline @@ Pp_utils.pp_to_string Pprintast.structure @@
+Continuation_code.generate_code_from_function e
 ;;

@@ -16,7 +16,7 @@ open Continuation_types;;
 open Flow_analysis;;
 open Fragment_types;;
 
-exception Invalid_transformation of string;;
+exception Invalid_transformation of string * Location.t;;
 
 let mangle_intermediate_name (name : Longident.t) (binder_uid : Fragment_uid.t)
   : Longident.t =
@@ -157,7 +157,8 @@ let create_continuation_functions
                  | Some ebv ->
                    not @@ Fragment_uid.equal ebv.ebv_binder iv.iv_binder
               )
-            |> Enum.map (fun iv -> iv.iv_name)
+            |> Enum.map
+              (fun iv -> mangle_intermediate_name iv.iv_name iv.iv_binder)
           in
           List.of_enum (Enum.append externally_bound_vars intermediate_vars)
         in
@@ -383,8 +384,9 @@ let create_start_fn_decl
 let create_cont_fn_decl
     (loc : Location.t)
     (fragment_group : fragment_group)
-    (cont_pat_fn : continuation_pattern_function)
+    (continuation_type_name : string)
     (cont_fn_name : string)
+    (cont_pat_fn : continuation_pattern_function)
   : structure_item =
   let extension_hole_targets =
     (* Only include those fragments which are targets of extension holes.
@@ -469,6 +471,13 @@ let create_cont_fn_decl
       [%e cont_fn_body]
     ] [@metaloc loc]
   in
+  let cont_type =
+    { ptyp_desc =
+        Ptyp_constr(mkloc (Longident.Lident continuation_type_name) loc, []);
+      ptyp_loc = loc;
+      ptyp_attributes = [];
+    }
+  in
   { pstr_desc =
       Pstr_value(
         Nonrecursive,
@@ -477,7 +486,11 @@ let create_cont_fn_decl
                 ppat_attributes = [];
                 ppat_loc = loc;
               };
-            pvb_expr = cont_fn;
+            pvb_expr =
+              [%expr
+                ([%e cont_fn] :
+                   [%t cont_type] -> 'input -> 'a continuation_result)
+              ];
             pvb_attributes = [];
             pvb_loc = loc;
           } ]);
@@ -594,13 +607,20 @@ let generate_code_from_function
       type 'a continuation_result =
         | Value_result of 'a
         | Continuation_result of [%t typ]
-    ]
+    ] (* FIXME: these types still aren't quite right: continuation results must
+         be monadic too, so it seems the result should be within the monad or
+         something. *)
   in
   let frag_fn_decls =
     create_frag_fn_decls loc fragment_group cont_expr_fn cont_pat_fn
   in
   let cont_fn_decl =
-    create_cont_fn_decl loc fragment_group cont_pat_fn cont_fn_name
+    create_cont_fn_decl
+      loc
+      fragment_group
+      continuation_type_name
+      cont_fn_name
+      cont_pat_fn
   in
   let start_fn_decl =
     create_start_fn_decl

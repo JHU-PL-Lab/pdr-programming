@@ -555,6 +555,52 @@ add_continuation_transform_test
 ;;
 
 add_continuation_transform_test
+  "two impure let bindings"
+  [%expr let x = [%pop] in let y = [%pop] in (x,y)]
+  { ctte_entry = 0;
+    ctte_exits = [4];
+    ctte_fragments =
+      [{ cttfe_id = 0;
+         cttfe_has_input = false;
+         cttfe_outputs =
+           [{ cttee_id = (Some 1);
+              cttee_extension = true;
+              cttee_bound_vars = [];
+            }
+           ];
+         cttfe_free_vars = [];
+         cttfe_ext_bound_vars = [];
+         cttfe_code = [%expr EXT_HOLE "1" ];
+       };
+       { cttfe_id = 1;
+         cttfe_has_input = true;
+         cttfe_outputs =
+           [{ cttee_id = (Some 4);
+              cttee_extension = true;
+              cttee_bound_vars = [("x", None)];
+            }
+           ];
+         cttfe_free_vars = [];
+         cttfe_ext_bound_vars = [];
+         cttfe_code = [%expr let x = INPUT_HOLE in EXT_HOLE "4" ];
+       };
+       { cttfe_id = 4;
+         cttfe_has_input = true;
+         cttfe_outputs =
+           [{ cttee_id = None;
+              cttee_extension = false;
+              cttee_bound_vars = [("x", None); ("y", None)];
+            }
+           ];
+         cttfe_free_vars = [];
+         cttfe_ext_bound_vars = [("x", 1, None)];
+         cttfe_code = [%expr let y = INPUT_HOLE in EVAL_HOLE ("None", (x, y)) ];
+       };
+      ]
+  }
+;;
+
+add_continuation_transform_test
   "pure single case match"
   [%expr
     match x with
