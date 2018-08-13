@@ -144,6 +144,15 @@ let main () =
 
 (* main ();; *)
 
+(* prerr_string @@ Fragment_pp.string_of_fragment_group @@
+(Transformer_monad.run
+   (Fragment_types.Fragment_uid.new_context ())
+   (Variable_utils.new_fresh_variable_context ())
+   (fun ext -> (fst ext).txt = "pop")
+   (Transformer.do_transform e)
+);
+prerr_string "\n"; *)
+
 let e =
   [%expr
     fun () ->
@@ -154,20 +163,21 @@ let e =
   ]
 ;;
 
-(* prerr_string @@ Fragment_pp.string_of_fragment_group @@
-(Transformer_monad.run
-   (Fragment_types.Fragment_uid.new_context ())
-   (Variable_utils.new_fresh_variable_context ())
-   (fun ext -> (fst ext).txt = "pop")
-   (Transformer.do_transform e)
-);
-prerr_string "\n"; *)
-
-print_endline @@ Pp_utils.pp_to_string Pprintast.structure @@
+(* print_endline @@ Pp_utils.pp_to_string Pprintast.structure @@
 [%str
   type stack_element = Num of int | Count of int
 ];;
 
 print_endline @@ Pp_utils.pp_to_string Pprintast.structure @@
 Continuation_code.generate_code_from_function e
+;; *)
+
+print_endline @@ Pp_utils.pp_to_string Sandbox_crud.pp_structure @@
+[%str
+  type stack_element = Foo | Bar of int | Bottom;;
+  let%transition f a b =
+    let x = [%pop] in
+    (a,b,x)
 ;;
+let helper x = x;;
+];;

@@ -1,0 +1,25 @@
+(library
+  (name pdr_programming_ppx)
+  (public_name pdr-programming.ppx)
+  (synopsis
+    "A PPX extension for converting transition functions into PDR modules."
+  )
+  (libraries
+    batteries
+    compiler-libs.common
+    jhupllib
+    monadlib
+    ocaml-migrate-parsetree
+    pdr-programming.continuation-extensions
+    pdr-programming.generation
+    pdr-programming.utils
+  )
+  (kind ppx_rewriter)
+  (preprocess
+    (pps
+      ocaml-monadic
+      ppx_deriving.std
+      ppx_tools_versioned.metaquot_406
+    )
+  )
+)

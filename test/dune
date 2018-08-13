@@ -8,7 +8,6 @@
   (name test)
   (modules
     Test
-    Test_a_normalization
     Test_big_variant
     Test_continuation_transformer
     Test_declarations
@@ -17,7 +16,6 @@
   )
   (libraries
     oUnit
-    pdr-programming.a-normalization
     pdr-programming.continuation-extensions
     pdr-programming.generation
     pds-reachability
@@ -39,7 +37,6 @@
   )
   (libraries
     oUnit
-    pdr-programming.a-normalization
     pdr-programming.continuation-extensions
     pdr-programming.generation
     pds-reachability
