@@ -266,25 +266,30 @@ let create_frag_fn_expr
   : expression =
   let fragment = Fragment_uid_map.find uid fragment_group.fg_graph in
   let (_, vars) = cont_pat_fn loc uid in
+  let frag_fn_cont_patterns =
+    vars
+    |> List.map
+      (function
+        | Longident.Lident s ->
+          { ppat_desc = Ppat_var(mkloc s loc);
+            ppat_loc = loc;
+            ppat_attributes = [];
+          }
+        | _  ->
+          raise @@
+          Utils.Not_yet_implemented
+            "non-simple ident in create_frag_fn_expr"
+      )
+  in
   let frag_fn_pat =
-    { ppat_desc =
-        Ppat_tuple(vars
-                   |> List.map
-                     (function
-                       | Longident.Lident s ->
-                         { ppat_desc = Ppat_var(mkloc s loc);
-                           ppat_loc = loc;
-                           ppat_attributes = [];
-                         }
-                       | _  ->
-                         raise @@
-                         Utils.Not_yet_implemented
-                           "non-simple ident in create_frag_fn_expr"
-                     )
-                  );
-      ppat_loc = loc;
-      ppat_attributes = [];
-    }
+    match frag_fn_cont_patterns with
+    | [] -> [%pat? ()] [@metaloc loc]
+    | [pat] -> pat
+    | _ ->
+      { ppat_desc = Ppat_tuple(frag_fn_cont_patterns);
+        ppat_loc = loc;
+        ppat_attributes = [];
+      }
   in
   let frag_fn_body =
     let eval_hole_fns =

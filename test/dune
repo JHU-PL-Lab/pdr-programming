@@ -1,6 +1,6 @@
 (alias
   (name runtest)
-  (deps test.exe)
+  (deps test.exe ppx_test.exe)
   (action (run ./test.exe))
 )
 
@@ -48,4 +48,22 @@
     )
   )
   (flags (:standard (-w -39)))
+)
+
+(executable
+  (name ppx_test)
+  (modules
+    Ppx_test
+  )
+  (libraries
+    jhupllib
+  )
+  (preprocess
+    (pps
+      pdr-programming.ppx
+    )
+  )
+  (flags
+    (:standard -w -39) ;because we generate unnecessary rec flags
+  )
 )
