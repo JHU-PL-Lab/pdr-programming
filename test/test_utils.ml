@@ -22,5 +22,5 @@ let test_transform_code expr =
     (Fragment_uid.new_context ())
     (new_fresh_variable_context ~prefix:"var" ())
     (fun (name,_) -> name.txt = "pop")
-    (fun (name,_) -> name.txt = "pick")
+    (fun (name,_) -> name.txt = "pick" || name.txt = "require")
 ;;

@@ -41,34 +41,27 @@ type continuation_pattern_function =
   Location.t -> Fragment_uid.t -> pattern * Longident.t list
 ;;
 
-let process_pick (expression : expression) =
+let process_nondeterminism_extensions (expression : expression) =
   let mapper =
     { Ast_mapper.default_mapper with
       expr = fun mapper e ->
-        match e.pexp_desc with
-        | Pexp_extension(
-            nameloc,
-            PStr([{ pstr_desc =
-                      Pstr_eval(
-                        { pexp_desc =
-                            Pexp_let(
-                              Nonrecursive,
-                              [ { pvb_pat = val_pat;
-                                  pvb_expr = val_expr;
-                                  pvb_loc = _;
-                                  pvb_attributes = _;
-                                } ],
-                              body);
-                          pexp_loc = _;
-                          pexp_attributes = _;
-                        },
-                        _);
-                    pstr_loc = _;
-                  }])
-          ) when nameloc.txt = "pick" ->
+        match e with
+        | [%expr [%pick
+          let [%p? val_pat] = [%e? val_expr] in [%e? body]]] ->
+          let val_expr' = mapper.expr mapper val_expr in
+          let body' = mapper.expr mapper body in
           [%expr
             BatEnum.concat
-              (BatEnum.map (fun [%p val_pat] -> [%e body]) [%e val_expr])
+              (BatEnum.map (fun [%p val_pat] -> [%e body']) [%e val_expr'])
+          ] [@metaloc e.pexp_loc]
+        | [%expr [%require
+          let [%p? val_pat] = [%e? val_expr] in [%e? body]]] ->
+          let val_expr' = mapper.expr mapper val_expr in
+          let body' = mapper.expr mapper body in
+          [%expr
+            match [%e val_expr'] with
+            | [%p val_pat] -> [%e body']
+            | _ -> BatEnum.empty ()
           ] [@metaloc e.pexp_loc]
         | _ ->
           Ast_mapper.default_mapper.expr mapper e
@@ -338,7 +331,7 @@ let create_frag_fn_expr
       |> map_extension_holes_to_expressions cont_expr_fn uid
     in
     fragment.fragment_code (Some [%expr _input]) eval_hole_fns ext_hole_exprs
-    |> process_pick
+    |> process_nondeterminism_extensions
   in
   [%expr
     fun [%p frag_fn_pat] _input ->
@@ -406,7 +399,7 @@ let create_start_fn_decl
       None
       evaluation_hole_expression_functions
       extension_hole_expressions
-    |> process_pick
+    |> process_nondeterminism_extensions
   in
   let start_fun_expr = function_of_body start_fun_body in
   { pstr_desc = Pstr_value(
@@ -622,7 +615,7 @@ let generate_code_from_function
       (Fragment_types.Fragment_uid.new_context ())
       (new_fresh_variable_context ())
       (fun ext -> (fst ext).txt = "pop")
-      (fun ext -> (fst ext).txt = "pick")
+      (fun ext -> (fst ext).txt = "pick" || (fst ext).txt = "require")
   in
   let type_spec =
     create_continuation_type_spec loc continuation_type_name fragment_group
