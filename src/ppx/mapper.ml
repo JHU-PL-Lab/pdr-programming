@@ -15,14 +15,19 @@ let transform_structure_item mapper structure_item : structure =
     begin
       match body with
       | [ { pstr_desc = Pstr_value(_, [binding]); pstr_loc = _; } ] ->
-        Continuation_code.generate_code_from_function binding.pvb_expr
+        let s = Continuation_code.generate_code_from_function binding.pvb_expr in
+        prerr_string (Jhupllib.Pp_utils.pp_to_string (Printast.structure 0) s);
+           prerr_string "\n";
+           prerr_string (Jhupllib.Pp_utils.pp_to_string Pprintast.structure s);
+           prerr_string "\n";
+        s
       | _ ->
         raise @@ Location.Error(
           Location.error
             ~loc:structure_item.pstr_loc @@
           "transition extension must be applied to a single let binding")
     end
-  | _ -> [structure_item]
+  | _ -> [structure_item']
 ;;
 
 let mapper =
