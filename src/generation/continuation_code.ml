@@ -67,8 +67,8 @@ let process_pick (expression : expression) =
                   }])
           ) when nameloc.txt = "pick" ->
           [%expr
-            Enum.concat
-              (Enum.map (fun [%p val_pat] -> [%e body]) [%e val_expr])
+            BatEnum.concat
+              (BatEnum.map (fun [%p val_pat] -> [%e body]) [%e val_expr])
           ] [@metaloc e.pexp_loc]
         | _ ->
           Ast_mapper.default_mapper.expr mapper e
@@ -237,7 +237,8 @@ let map_evaluation_holes_to_functions
        | None ->
          (* This means that we don't need to continue; we just produce a
             result. *)
-         fun value_expr -> [%expr Enum.singleton(Value_result([%e value_expr]))]
+         fun value_expr ->
+           [%expr BatEnum.singleton(Value_result([%e value_expr]))]
        | Some target_fragment_uid ->
          let (_, vars) = cont_pat_fn evhd.evhd_loc target_fragment_uid in
          let call_tuple =
@@ -289,7 +290,7 @@ let map_extension_holes_to_expressions
              source_fragment_uid
              target_fragment_uid
          in
-         [%expr Enum.singleton (Continuation_result([%e cont_expr]))]
+         [%expr BatEnum.singleton (Continuation_result([%e cont_expr]))]
     )
 ;;
 
