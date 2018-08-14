@@ -4,6 +4,7 @@ open Jhupllib;;
 open OUnit2
 
 let all_tests =
+  [
     "Big Variant" >::: Test_big_variant.tests;
     "Continuation Transformer" >::: Test_continuation_transformer.tests;
     "Declaration Generation" >::: Test_declarations.tests;

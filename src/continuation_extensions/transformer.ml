@@ -145,7 +145,32 @@ let rec do_transform (e : expression)
   | Parsetree.Pexp_open(_,_,_) ->
     raise @@ Utils.Not_yet_implemented("transform: Pexp_open")
   | Parsetree.Pexp_extension ext ->
-    fragment_extension loc attrs ext
+    let%bind is_homomorphic = is_homomorphic_extension ext in
+    if is_homomorphic then
+      let (nameloc, payload) = ext in
+      match payload with
+      | PStr([{ pstr_desc = Pstr_eval(e, e_attrs); pstr_loc = str_loc; }]) ->
+        e
+        |> do_transform
+        |> lift1
+          (Fragment_constructors_utils.fragment_group_code_transform
+             (fun e' ->
+                let payload' =
+                  PStr([{ pstr_desc = Pstr_eval(e', e_attrs);
+                          pstr_loc = str_loc; }])
+                in
+                { pexp_desc = Pexp_extension(nameloc, payload');
+                  pexp_loc = loc;
+                  pexp_attributes = attrs;
+                }
+             )
+          )
+      | _ ->
+        raise @@
+        Utils.Not_yet_implemented
+          "homomorphic extensions only supported around singleton expressions"
+    else
+      fragment_extension loc attrs ext
   | Parsetree.Pexp_unreachable  ->
     raise @@ Utils.Not_yet_implemented("transform: Pexp_unreachable")
 

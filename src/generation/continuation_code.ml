@@ -41,6 +41,42 @@ type continuation_pattern_function =
   Location.t -> Fragment_uid.t -> pattern * Longident.t list
 ;;
 
+let process_pick (expression : expression) =
+  let mapper =
+    { Ast_mapper.default_mapper with
+      expr = fun mapper e ->
+        match e.pexp_desc with
+        | Pexp_extension(
+            nameloc,
+            PStr([{ pstr_desc =
+                      Pstr_eval(
+                        { pexp_desc =
+                            Pexp_let(
+                              Nonrecursive,
+                              [ { pvb_pat = val_pat;
+                                  pvb_expr = val_expr;
+                                  pvb_loc = _;
+                                  pvb_attributes = _;
+                                } ],
+                              body);
+                          pexp_loc = _;
+                          pexp_attributes = _;
+                        },
+                        _);
+                    pstr_loc = _;
+                  }])
+          ) when nameloc.txt = "pick" ->
+          [%expr
+            Enum.concat
+              (Enum.map (fun [%p val_pat] -> [%e body]) [%e val_expr])
+          ] [@metaloc e.pexp_loc]
+        | _ ->
+          Ast_mapper.default_mapper.expr mapper e
+    }
+  in
+  mapper.expr mapper expression
+;;
+
 let create_continuation_functions
   :
     fragment_group ->
@@ -201,7 +237,7 @@ let map_evaluation_holes_to_functions
        | None ->
          (* This means that we don't need to continue; we just produce a
             result. *)
-         fun value_expr -> [%expr Value_result([%e value_expr])]
+         fun value_expr -> [%expr Enum.singleton(Value_result([%e value_expr]))]
        | Some target_fragment_uid ->
          let (_, vars) = cont_pat_fn evhd.evhd_loc target_fragment_uid in
          let call_tuple =
@@ -253,7 +289,7 @@ let map_extension_holes_to_expressions
              source_fragment_uid
              target_fragment_uid
          in
-         [%expr Continuation_result([%e cont_expr])]
+         [%expr Enum.singleton (Continuation_result([%e cont_expr]))]
     )
 ;;
 
@@ -266,25 +302,30 @@ let create_frag_fn_expr
   : expression =
   let fragment = Fragment_uid_map.find uid fragment_group.fg_graph in
   let (_, vars) = cont_pat_fn loc uid in
+  let frag_fn_cont_patterns =
+    vars
+    |> List.map
+      (function
+        | Longident.Lident s ->
+          { ppat_desc = Ppat_var(mkloc s loc);
+            ppat_loc = loc;
+            ppat_attributes = [];
+          }
+        | _  ->
+          raise @@
+          Utils.Not_yet_implemented
+            "non-simple ident in create_frag_fn_expr"
+      )
+  in
   let frag_fn_pat =
-    { ppat_desc =
-        Ppat_tuple(vars
-                   |> List.map
-                     (function
-                       | Longident.Lident s ->
-                         { ppat_desc = Ppat_var(mkloc s loc);
-                           ppat_loc = loc;
-                           ppat_attributes = [];
-                         }
-                       | _  ->
-                         raise @@
-                         Utils.Not_yet_implemented
-                           "non-simple ident in create_frag_fn_expr"
-                     )
-                  );
-      ppat_loc = loc;
-      ppat_attributes = [];
-    }
+    match frag_fn_cont_patterns with
+    | [] -> [%pat? ()] [@metaloc loc]
+    | [pat] -> pat
+    | _ ->
+      { ppat_desc = Ppat_tuple(frag_fn_cont_patterns);
+        ppat_loc = loc;
+        ppat_attributes = [];
+      }
   in
   let frag_fn_body =
     let eval_hole_fns =
@@ -296,6 +337,7 @@ let create_frag_fn_expr
       |> map_extension_holes_to_expressions cont_expr_fn uid
     in
     fragment.fragment_code (Some [%expr _input]) eval_hole_fns ext_hole_exprs
+    |> process_pick
   in
   [%expr
     fun [%p frag_fn_pat] _input ->
@@ -363,6 +405,7 @@ let create_start_fn_decl
       None
       evaluation_hole_expression_functions
       extension_hole_expressions
+    |> process_pick
   in
   let start_fun_expr = function_of_body start_fun_body in
   { pstr_desc = Pstr_value(
@@ -489,7 +532,7 @@ let create_cont_fn_decl
             pvb_expr =
               [%expr
                 ([%e cont_fn] :
-                   [%t cont_type] -> 'input -> 'a continuation_result)
+                   [%t cont_type] -> 'input -> 'a continuation_result BatEnum.t)
               ];
             pvb_attributes = [];
             pvb_loc = loc;
@@ -578,6 +621,7 @@ let generate_code_from_function
       (Fragment_types.Fragment_uid.new_context ())
       (new_fresh_variable_context ())
       (fun ext -> (fst ext).txt = "pop")
+      (fun ext -> (fst ext).txt = "pick")
   in
   let type_spec =
     create_continuation_type_spec loc continuation_type_name fragment_group
@@ -607,9 +651,7 @@ let generate_code_from_function
       type 'a continuation_result =
         | Value_result of 'a
         | Continuation_result of [%t typ]
-    ] (* FIXME: these types still aren't quite right: continuation results must
-         be monadic too, so it seems the result should be within the monad or
-         something. *)
+    ]
   in
   let frag_fn_decls =
     create_frag_fn_decls loc fragment_group cont_expr_fn cont_pat_fn

@@ -2,12 +2,10 @@ open Batteries;;
 open Jhupllib;;
 open OUnit2;;
 
-open Asttypes;;
 open Parsetree;;
 
 open Pdr_programming_continuation_extensions;;
 open Pdr_programming_generation;;
-open Pdr_programming_utils;;
 open Test_utils;;
 
 (* ****************************************************************************
@@ -28,15 +26,7 @@ let add_determine_intermediates_test
   : unit =
   add_test (name >:: fun _ ->
       let open Fragment_types in
-      let open Variable_utils in
-      let result_group =
-        code
-        |> Transformer.do_transform
-        |> Transformer_monad.run
-          (Fragment_uid.new_context ())
-          (new_fresh_variable_context ~prefix:"var" ())
-          (fun (name,_) -> name.txt = "pop")
-      in
+      let result_group = test_transform_code code in
       let intermediates = Flow_analysis.determine_intermediates result_group in
       let actual =
         intermediates

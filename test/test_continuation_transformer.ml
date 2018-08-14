@@ -2,11 +2,9 @@ open Batteries;;
 (* open Jhupllib;; *)
 open OUnit2;;
 
-open Asttypes;;
 open Parsetree;;
 
 open Pdr_programming_continuation_extensions;;
-open Pdr_programming_utils;;
 open Pdr_programming_utils.Variable_utils;;
 open Test_utils;;
 
@@ -252,14 +250,7 @@ let add_continuation_transform_test
   : unit =
   add_test (name >:: fun _ ->
       (* Perform transformation *)
-      let result =
-        input
-        |> Transformer.do_transform
-        |> Transformer_monad.run
-          (Fragment_types.Fragment_uid.new_context ())
-          (Variable_utils.new_fresh_variable_context ~prefix:"var" ())
-          (fun (name,_) -> name.txt = "pop")
-      in
+      let result = test_transform_code input in
       (* Now verify the expectations of the result.  We can do this by
          converting the fragment group into an expectation (canonically sorting
          unsorted elements) and then inspecting everything in turn.  We'll start
