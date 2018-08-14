@@ -60,7 +60,6 @@
   )
   (preprocess
     (pps
-      ocaml-monadic
       pdr-programming.ppx
     )
   )
