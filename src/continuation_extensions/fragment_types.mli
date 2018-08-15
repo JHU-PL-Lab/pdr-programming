@@ -75,6 +75,16 @@ Alrighty... here we go again.
 (** A module defining fragment UIDs. *)
 module Fragment_uid : Uids.Uid_module;;
 
+(** The type of a fragment UID set. *)
+module Fragment_uid_set : sig
+  include Set.S with type elt = Fragment_uid.t;;
+  val pp : t Pp_utils.pretty_printer
+  val show : t -> string
+end;;
+
+(** The type of a fragment UID dictionary. *)
+module Fragment_uid_map : Map.S with type key = Fragment_uid.t;;
+
 (** The metadata describing an input hole. *)
 type input_hole_data =
   {
@@ -90,10 +100,12 @@ type evaluation_hole_data =
     (** The location describing the origin of the expression that produced the
           evaluated value. *)
 
-    evhd_target_fragment : Fragment_uid.t option;
-    (** The ID of the fragment which should be evaluated after this one, or
-        [None] to indicate that the evaluated result of this evaluation hole is
-        the result of the overall expression. *)
+    evhd_target_fragments : Fragment_uid_set.t option;
+    (** A set of fragments to be executed after this one.  Typically, this will
+        be a singleton set.  Multiple UIDs indicate nondeterminstic execution.
+        A value of [None] indicates that the evaluated result of this evaluation
+        hole is the result of the overall expression represented by the fragment
+        group. *)
 
     evhd_bound_variables : core_type option Var_map.t;
     (** The variables which are bound by the point that this evaluation hole is
@@ -171,14 +183,6 @@ type fragment =
         will result in the desired extension-specific behavior. *)
   }
 ;;
-
-(** The type of a fragment UID set. *)
-module Fragment_uid_set : sig
-  include Set.S with type elt = Fragment_uid.t;;
-  val pp : t Pp_utils.pretty_printer
-end;;
-(** The type of a fragment UID dictionary. *)
-module Fragment_uid_map : Map.S with type key = Fragment_uid.t;;
 
 type fragment_group =
   { fg_graph : fragment Fragment_uid_map.t;

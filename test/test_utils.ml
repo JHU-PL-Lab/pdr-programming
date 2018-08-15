@@ -18,9 +18,21 @@ let int_of_uid uid =
 let test_transform_code expr =
   expr
   |> Transformer.do_transform
+    (let rec extension_handler loc attrs ext =
+       match (fst ext).Location.txt with
+       | "pop" ->
+         Transformer.fragment_extension_continuation loc attrs ext
+       | "pick"
+       | "require" ->
+         Transformer.fragment_extension_homomorphism
+           extension_handler loc attrs ext
+       | "pick_lazy" ->
+         Transformer.fragment_extension_nondeterminism
+           extension_handler loc attrs ext
+       | _ ->
+         Transformer.fragment_extension_noop loc attrs ext
+     in extension_handler)
   |> Transformer_monad.run
     (Fragment_uid.new_context ())
     (new_fresh_variable_context ~prefix:"var" ())
-    (fun (name,_) -> name.txt = "pop")
-    (fun (name,_) -> name.txt = "pick" || name.txt = "require")
 ;;

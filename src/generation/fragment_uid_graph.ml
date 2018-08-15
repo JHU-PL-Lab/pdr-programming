@@ -18,15 +18,21 @@ let create_reverse_uid_graph (group : fragment_group)
            fragment.fragment_evaluation_holes
            |> List.enum
            |> Enum.map
-             (fun evhd -> evhd.evhd_target_fragment)
+             (fun evhd ->
+                match evhd.evhd_target_fragments with
+                | None -> Enum.empty ()
+                | Some target_fragments ->
+                  Fragment_uid_set.enum target_fragments
+             )
+           |> Enum.concat
          )
          (
            fragment.fragment_extension_holes
            |> List.enum
-           |> Enum.map
+           |> Enum.filter_map
              (fun exhd -> exhd.exhd_target_fragment)
          )
-       |> Enum.filter_map (Option.map @@ fun uid' -> (uid',uid))
+       |> Enum.map (fun uid' -> (uid',uid))
     )
   |> Enum.concat
   |> Fragment_uid_fragment_uid_multimap.of_enum

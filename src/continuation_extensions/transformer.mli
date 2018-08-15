@@ -23,4 +23,68 @@ open Transformer_monad;;
    computation as a monad and this transformer becomes appropriate.
 *)
 
-val do_transform : expression -> fragment_group m;;
+type extension_handler =
+  Location.t -> attributes -> extension -> fragment_group m
+;;
+
+val sequentialize_fragment_groups :
+  Location.t -> fragment_group list -> (expression list -> expression) ->
+  fragment_group m
+;;
+
+val fragment_ident :
+  Location.t -> attributes -> Longident.t Asttypes.loc -> fragment_group m
+;;
+
+val fragment_constant :
+  Location.t -> attributes -> constant -> fragment_group m
+;;
+
+val fragment_let :
+  Location.t -> attributes -> Asttypes.rec_flag ->
+  (pattern * fragment_group * attributes * Location.t) list ->
+  fragment_group ->
+  fragment_group m
+;;
+
+val fragment_apply :
+  Location.t -> attributes -> fragment_group ->
+  (Asttypes.arg_label * fragment_group) list ->
+  fragment_group m
+;;
+
+val fragment_match :
+  Location.t -> attributes -> fragment_group ->
+  (pattern * fragment_group option * fragment_group) list ->
+  fragment_group m
+;;
+
+val fragment_tuple :
+  Location.t -> attributes -> fragment_group list -> fragment_group m
+;;
+
+val fragment_construct :
+  Location.t -> attributes -> Longident.t Asttypes.loc ->
+  fragment_group option ->
+  fragment_group m
+;;
+
+val fragment_ifthenelse :
+  Location.t -> attributes ->
+  fragment_group -> fragment_group -> fragment_group ->
+  fragment_group m
+;;
+
+val fragment_constraint :
+  Location.t -> attributes -> fragment_group -> core_type -> fragment_group m
+;;
+
+val fragment_extension_noop : extension_handler;;
+
+val fragment_extension_continuation : extension_handler;;
+
+val fragment_extension_homomorphism : extension_handler -> extension_handler;;
+
+val fragment_extension_nondeterminism : extension_handler -> extension_handler;;
+
+val do_transform : extension_handler -> expression -> fragment_group m;;

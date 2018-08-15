@@ -1,5 +1,5 @@
 open Batteries;;
-(* open Jhupllib;; *)
+open Jhupllib;;
 open OUnit2;;
 
 open Parsetree;;
@@ -39,7 +39,7 @@ let _list_sorted_pervasive_compare a b =
 let pp_core_type = Pprintast.core_type;;
 
 type continuation_transform_test_output_expectation =
-  { cttee_id : int option;
+  { cttee_ids : int list option;
     cttee_extension : bool;
     cttee_bound_vars :
       (string * core_type option) list
@@ -87,9 +87,17 @@ let convert_uid (uid : Fragment_uid.t) : int =
   int_of_string @@ Fragment_uid.show uid
 ;;
 
+let convert_uids (uids : Fragment_uid_set.t) : int list =
+  uids
+  |> Fragment_uid_set.enum
+  |> Enum.map convert_uid
+  |> List.of_enum
+  |> List.sort compare
+;;
+
 let convert_evaluation_hole (h : evaluation_hole_data)
   : continuation_transform_test_output_expectation =
-  { cttee_id = Option.map convert_uid h.evhd_target_fragment;
+  { cttee_ids = Option.map convert_uids h.evhd_target_fragments;
     cttee_extension = false;
     cttee_bound_vars = _bound_vars_map_to_list h.evhd_bound_variables
   }
@@ -97,7 +105,8 @@ let convert_evaluation_hole (h : evaluation_hole_data)
 
 let convert_extension_hole (h : extension_hole_data)
   : continuation_transform_test_output_expectation =
-  { cttee_id = Option.map convert_uid h.exhd_target_fragment;
+  { cttee_ids =
+      Option.map (List.singleton % convert_uid) h.exhd_target_fragment;
     cttee_extension = true;
     cttee_bound_vars = _bound_vars_map_to_list h.exhd_bound_variables
   }
@@ -133,8 +142,13 @@ let convert_fragment (fragment : fragment)
          |> List.map
            (fun eval_hole_data e ->
               let uid_str =
-                eval_hole_data.evhd_target_fragment
-                |> Option.map Fragment_uid.show
+                eval_hole_data.evhd_target_fragments
+                |> Option.map
+                  (fun target_fragments ->
+                     Pp_utils.pp_to_string
+                       (Pp_utils.pp_concat_sep "," Fragment_uid.pp)
+                       (Fragment_uid_set.enum target_fragments)
+                  )
                 |> Option.default "None"
               in
               let uid_str_expr =
@@ -205,7 +219,7 @@ let add_fragment_metadata_bind_test
   : unit =
   add_test (name >:: fun _ ->
       let result =
-        Fragment_constructors_utils.fragment_metadata_bind
+        Fragment_utils.fragment_metadata_bind
           Location.none binder_uid bindings fragment
       in
       let cactual = canonicalize_expected_fragment @@ convert_fragment result in
@@ -225,7 +239,7 @@ let add_embed_nonbind_test
   : unit =
   add_test (name >:: fun _ ->
       let result =
-        Fragment_constructors_utils.embed_nonbind Location.none g1 g2
+        Fragment_utils.embed_nonbind Location.none g1 g2
       in
       let cactual =
         canonicalize_expected_group @@ convert_fragment_group result
@@ -284,7 +298,7 @@ add_fragment_metadata_bind_test
     fragment_input_hole = None;
     fragment_evaluation_holes =
       [ { evhd_loc = Location.none;
-          evhd_target_fragment = None;
+          evhd_target_fragments = None;
           evhd_bound_variables = Var_map.empty;
         }
       ];
@@ -298,7 +312,7 @@ add_fragment_metadata_bind_test
   { cttfe_id = 0;
     cttfe_has_input = false;
     cttfe_outputs = [
-      { cttee_id = None;
+      { cttee_ids = None;
         cttee_extension = false;
         cttee_bound_vars = [("x",None)]
       }
@@ -323,7 +337,7 @@ add_fragment_metadata_bind_test
     fragment_input_hole = None;
     fragment_evaluation_holes =
       [ { evhd_loc = Location.none;
-          evhd_target_fragment = None;
+          evhd_target_fragments = None;
           evhd_bound_variables = Var_map.empty;
         }
       ];
@@ -337,7 +351,7 @@ add_fragment_metadata_bind_test
   { cttfe_id = 0;
     cttfe_has_input = false;
     cttfe_outputs = [
-      { cttee_id = None;
+      { cttee_ids = None;
         cttee_extension = false;
         cttee_bound_vars = [("x",None)]
       }
@@ -357,7 +371,7 @@ add_continuation_transform_test
       [ { cttfe_id = 0;
           cttfe_has_input = false;
           cttfe_outputs = [
-            { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
+            { cttee_ids = None; cttee_extension = false; cttee_bound_vars = [] }
           ];
           cttfe_free_vars = [];
           cttfe_ext_bound_vars = [];
@@ -376,7 +390,7 @@ add_continuation_transform_test
       [ { cttfe_id = 0;
           cttfe_has_input = false;
           cttfe_outputs = [
-            { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
+            { cttee_ids = None; cttee_extension = false; cttee_bound_vars = [] }
           ];
           cttfe_free_vars = ["x"];
           cttfe_ext_bound_vars = [];
@@ -395,8 +409,14 @@ add_continuation_transform_test
       [ { cttfe_id = 3;
           cttfe_has_input = false;
           cttfe_outputs = [
-            { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] };
-            { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] };
+            { cttee_ids = None;
+              cttee_extension = false;
+              cttee_bound_vars = [];
+            };
+            { cttee_ids = None;
+              cttee_extension = false;
+              cttee_bound_vars = [];
+            };
           ];
           cttfe_free_vars = [];
           cttfe_ext_bound_vars = [];
@@ -418,8 +438,9 @@ add_continuation_transform_test
       [ { cttfe_id = 1;
           cttfe_has_input = false;
           cttfe_outputs = [
-            { cttee_id = None; cttee_extension = false;
-              cttee_bound_vars = [("a", None)]
+            { cttee_ids = None;
+              cttee_extension = false;
+              cttee_bound_vars = [("a", None)];
             }
           ];
           cttfe_free_vars = [];
@@ -439,7 +460,10 @@ add_continuation_transform_test
       [ { cttfe_id = 0;
           cttfe_has_input = false;
           cttfe_outputs = [
-            { cttee_id = None; cttee_extension = true; cttee_bound_vars = [] }
+            { cttee_ids = None;
+              cttee_extension = true;
+              cttee_bound_vars = [];
+            }
           ];
           cttfe_free_vars = [];
           cttfe_ext_bound_vars = [];
@@ -457,7 +481,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 0; cttfe_has_input = false;
          cttfe_outputs =
-           [{ cttee_id = (Some 1);
+           [{ cttee_ids = (Some [1]);
               cttee_extension = true;
               cttee_bound_vars = [];
             }
@@ -468,7 +492,7 @@ add_continuation_transform_test
        };
        { cttfe_id = 1; cttfe_has_input = true;
          cttfe_outputs =
-           [{ cttee_id = None;
+           [{ cttee_ids = None;
               cttee_extension = false;
               cttee_bound_vars = [("a",None)]
             }
@@ -489,7 +513,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 0; cttfe_has_input = false;
          cttfe_outputs =
-           [{ cttee_id = (Some 1);
+           [{ cttee_ids = (Some [1]);
               cttee_extension = true;
               cttee_bound_vars = [];
             }
@@ -500,7 +524,7 @@ add_continuation_transform_test
        };
        { cttfe_id = 1; cttfe_has_input = true;
          cttfe_outputs =
-           [{ cttee_id = None;
+           [{ cttee_ids = None;
               cttee_extension = false;
               cttee_bound_vars = [("a",None)]
             }
@@ -521,7 +545,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 1; cttfe_has_input = false;
          cttfe_outputs =
-           [{ cttee_id = (Some 2);
+           [{ cttee_ids = (Some [2]);
               cttee_extension = true;
               cttee_bound_vars = [("x", None)];
             }
@@ -532,7 +556,7 @@ add_continuation_transform_test
        };
        { cttfe_id = 2; cttfe_has_input = true;
          cttfe_outputs =
-           [{ cttee_id = None;
+           [{ cttee_ids = None;
               cttee_extension = false;
               cttee_bound_vars = [("x",None); ("y",None)]
             }
@@ -554,7 +578,7 @@ add_continuation_transform_test
       [{ cttfe_id = 0;
          cttfe_has_input = false;
          cttfe_outputs =
-           [{ cttee_id = (Some 1);
+           [{ cttee_ids = (Some [1]);
               cttee_extension = true;
               cttee_bound_vars = [];
             }
@@ -566,7 +590,7 @@ add_continuation_transform_test
        { cttfe_id = 1;
          cttfe_has_input = true;
          cttfe_outputs =
-           [{ cttee_id = (Some 4);
+           [{ cttee_ids = (Some [4]);
               cttee_extension = true;
               cttee_bound_vars = [("x", None)];
             }
@@ -578,7 +602,7 @@ add_continuation_transform_test
        { cttfe_id = 4;
          cttfe_has_input = true;
          cttfe_outputs =
-           [{ cttee_id = None;
+           [{ cttee_ids = None;
               cttee_extension = false;
               cttee_bound_vars = [("x", None); ("y", None)];
             }
@@ -602,7 +626,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 2; cttfe_has_input = false;
          cttfe_outputs = [
-           { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
+           { cttee_ids = None; cttee_extension = false; cttee_bound_vars = [] }
          ];
          cttfe_free_vars = ["x"];
          cttfe_ext_bound_vars = [];
@@ -628,8 +652,8 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 3; cttfe_has_input = false;
          cttfe_outputs = [
-           { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] };
-           { cttee_id = None; cttee_extension = false; cttee_bound_vars = [] };
+           { cttee_ids = None; cttee_extension = false; cttee_bound_vars = [] };
+           { cttee_ids = None; cttee_extension = false; cttee_bound_vars = [] };
          ];
          cttfe_free_vars = ["x"];
          cttfe_ext_bound_vars = [];
@@ -655,7 +679,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 2; cttfe_has_input = false;
          cttfe_outputs = [
-           { cttee_id = None; cttee_extension = true; cttee_bound_vars = [] }
+           { cttee_ids = None; cttee_extension = true; cttee_bound_vars = [] }
          ];
          cttfe_free_vars = ["x"];
          cttfe_ext_bound_vars = [];
@@ -683,7 +707,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 3; cttfe_has_input = true;
          cttfe_outputs = [
-           { cttee_id = None;
+           { cttee_ids = None;
              cttee_extension = false;
              cttee_bound_vars = [("x",None);("y",None)]
            }
@@ -698,7 +722,7 @@ add_continuation_transform_test
        };
        { cttfe_id = 4; cttfe_has_input = false;
          cttfe_outputs = [
-           { cttee_id = Some 3;
+           { cttee_ids = Some [3];
              cttee_extension = true;
              cttee_bound_vars = [("x",None)]
            }
@@ -731,7 +755,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 3; cttfe_has_input = true;
          cttfe_outputs = [
-           { cttee_id = None;
+           { cttee_ids = None;
              cttee_extension = false;
              cttee_bound_vars = [("x",None); ("y",None)]
            }
@@ -746,11 +770,11 @@ add_continuation_transform_test
        };
        { cttfe_id = 5; cttfe_has_input = false;
          cttfe_outputs = [
-           { cttee_id = Some 3;
+           { cttee_ids = Some [3];
              cttee_extension = true;
              cttee_bound_vars = [("x",None)]
            };
-           { cttee_id = None;
+           { cttee_ids = None;
              cttee_extension = true;
              cttee_bound_vars = []
            }
@@ -776,7 +800,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 2; cttfe_has_input = false;
          cttfe_outputs = [
-           {cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
+           { cttee_ids = None; cttee_extension = false; cttee_bound_vars = [] }
          ];
          cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
@@ -794,7 +818,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 0; cttfe_has_input = false;
          cttfe_outputs = [
-           { cttee_id = Some 2;
+           { cttee_ids = Some [2];
              cttee_extension = true;
              cttee_bound_vars = []
            }
@@ -805,7 +829,7 @@ add_continuation_transform_test
        };
        { cttfe_id = 2; cttfe_has_input = true;
          cttfe_outputs = [
-           { cttee_id = None;
+           { cttee_ids = None;
              cttee_extension = false;
              cttee_bound_vars = [("var0",None)]
            }
@@ -827,7 +851,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 4; cttfe_has_input = true;
          cttfe_outputs = [
-           { cttee_id = None;
+           { cttee_ids = None;
              cttee_extension = false;
              cttee_bound_vars = [("var0", None); ("var1", None)]
            }
@@ -841,7 +865,7 @@ add_continuation_transform_test
        };
        { cttfe_id = 1; cttfe_has_input = false;
          cttfe_outputs = [
-           { cttee_id = Some 4;
+           { cttee_ids = Some [4];
              cttee_extension = true;
              cttee_bound_vars = [("var1", None)]
            }
@@ -862,7 +886,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 2; cttfe_has_input = false;
          cttfe_outputs = [
-           {cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
+           { cttee_ids = None; cttee_extension = false; cttee_bound_vars = [] }
          ];
          cttfe_free_vars = ["f"; "x"];
          cttfe_ext_bound_vars = [];
@@ -880,7 +904,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 3; cttfe_has_input = false;
          cttfe_outputs = [
-           {cttee_id = None; cttee_extension = false; cttee_bound_vars = [] }
+           { cttee_ids = None; cttee_extension = false; cttee_bound_vars = [] }
          ];
          cttfe_free_vars = ["f"; "x"; "y"];
          cttfe_ext_bound_vars = [];
@@ -897,7 +921,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 0; cttfe_has_input = false;
          cttfe_outputs = [
-           { cttee_id = (Some 2);
+           { cttee_ids = (Some [2]);
              cttee_extension = true;
              cttee_bound_vars = []
            }
@@ -908,7 +932,7 @@ add_continuation_transform_test
        };
        { cttfe_id = 2; cttfe_has_input = true;
          cttfe_outputs = [
-           { cttee_id = None;
+           { cttee_ids = None;
              cttee_extension = false;
              cttee_bound_vars = [("var0", None)]
            }
@@ -928,7 +952,7 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 1; cttfe_has_input = false;
          cttfe_outputs = [
-           { cttee_id = (Some 2);
+           { cttee_ids = (Some [2]);
              cttee_extension = true;
              cttee_bound_vars = [("var1", None)]
            }
@@ -939,12 +963,12 @@ add_continuation_transform_test
        };
        { cttfe_id = 2; cttfe_has_input = true;
          cttfe_outputs = [
-           { cttee_id = None;
+           { cttee_ids = None;
              cttee_extension = false;
              cttee_bound_vars = [("var0", None);("var1", None)]
            }
          ];
-         cttfe_free_vars = ["f"];
+         cttfe_free_vars = [];
          cttfe_ext_bound_vars = [("var1", 1, None)];
          cttfe_code =
            [%expr let var0 = INPUT_HOLE in EVAL_HOLE ("None", (var1 var0)) ];
@@ -964,14 +988,14 @@ add_continuation_transform_test
     ctte_fragments =
       [{ cttfe_id = 1; cttfe_has_input = false;
          cttfe_outputs =
-           [{ cttee_id = (Some 2);
+           [{ cttee_ids = (Some [2]);
               cttee_extension = true; cttee_bound_vars = [("b", None)] }
            ];
          cttfe_free_vars = []; cttfe_ext_bound_vars = [];
          cttfe_code = [%expr let b = 4 in EXT_HOLE "2" ] };
        { cttfe_id = 2; cttfe_has_input = true;
          cttfe_outputs =
-           [{ cttee_id = None;
+           [{ cttee_ids = None;
               cttee_extension = false;
               cttee_bound_vars = [("b", None); ("y", None)] }
            ];

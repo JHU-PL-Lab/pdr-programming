@@ -34,12 +34,17 @@ let fragment_function_name (fragment_uid : Fragment_uid.t) : string =
   Printf.sprintf "__fragment_fn_%s" (Fragment_uid.show fragment_uid)
 ;;
 
-type continuation_expression_function =
-  Location.t -> Fragment_uid.t -> Fragment_uid.t -> expression
-;;
-type continuation_pattern_function =
-  Location.t -> Fragment_uid.t -> pattern * Longident.t list
-;;
+type continuation_operations =
+  {
+    co_expression :
+      Location.t -> Fragment_uid.t -> Fragment_uid.t -> expression;
+    co_argument_expressions :
+      Location.t -> Fragment_uid.t -> Fragment_uid.t -> expression list;
+    co_pattern :
+      Location.t -> Fragment_uid.t -> pattern;
+    co_pattern_variables :
+      Fragment_uid.t -> Longident.t list;
+  };;
 
 let process_nondeterminism_extensions (expression : expression) =
   let mapper =
@@ -70,17 +75,13 @@ let process_nondeterminism_extensions (expression : expression) =
   mapper.expr mapper expression
 ;;
 
-let create_continuation_functions
-  :
-    fragment_group ->
-    continuation_type_spec ->
-    continuation_expression_function * continuation_pattern_function
-  =
+let create_continuation_operations
+  : fragment_group -> continuation_type_spec -> continuation_operations =
   fun fragment_group type_spec ->
     let intermediate_var_map =
       Flow_analysis.determine_intermediates fragment_group
     in
-    let expr_fn =
+    let expr_args_fn =
       fun loc source_fragment_uid target_fragment_uid ->
         let target_fragment =
           Fragment_uid_map.find target_fragment_uid fragment_group.fg_graph
@@ -155,11 +156,10 @@ let create_continuation_functions
             )
           |> List.of_enum
         in
-        construct_continuation_value
-          loc type_spec target_fragment_uid target_args
+        target_args
     in
     let pat_fn =
-      fun loc target_fragment_uid ->
+      fun target_fragment_uid ->
         let target_fragment =
           Fragment_uid_map.find target_fragment_uid fragment_group.fg_graph
         in
@@ -191,82 +191,117 @@ let create_continuation_functions
           in
           List.of_enum (Enum.append externally_bound_vars intermediate_vars)
         in
-        let target_pats =
-          vars
-          |> List.enum
-          |> Enum.map
-            (fun varname ->
-               match varname with
-               | Longident.Lident(name) ->
-                 { ppat_desc = Ppat_var(mkloc name loc);
-                   ppat_loc = loc;
-                   ppat_attributes = [];
-                 }
-               | _ ->
-                 raise @@ Utils.Not_yet_implemented
-                   (Printf.sprintf
-                      "Passing non-simple identifier (%s) across continuations"
-                      (Longident_value.show varname)
-                   )
-            )
-          |> List.of_enum
-        in
-        ( destruct_continuation_value
-            loc type_spec target_fragment_uid target_pats,
-          vars
-        )
+        vars
     in
-    (expr_fn, pat_fn)
+    {
+      co_expression =
+        (fun loc source_fragment_uid target_fragment_uid ->
+           let target_args =
+             expr_args_fn loc source_fragment_uid target_fragment_uid
+           in
+           construct_continuation_value
+             loc type_spec target_fragment_uid target_args
+        );
+      co_argument_expressions =
+        (fun loc source_fragment_uid target_fragment_uid ->
+           expr_args_fn loc source_fragment_uid target_fragment_uid
+        );
+      co_pattern =
+        (fun loc target_fragment_uid ->
+           let target_pats =
+             pat_fn target_fragment_uid
+             |> List.enum
+             |> Enum.map
+               (fun varname ->
+                  match varname with
+                  | Longident.Lident(name) ->
+                    { ppat_desc = Ppat_var(mkloc name loc);
+                      ppat_loc = loc;
+                      ppat_attributes = [];
+                    }
+                  | _ ->
+                    raise @@ Utils.Not_yet_implemented
+                      (Printf.sprintf
+                         "Passing non-simple identifier (%s) across continuations"
+                         (Longident_value.show varname)
+                      )
+               )
+             |> List.of_enum
+           in
+           destruct_continuation_value
+             loc type_spec target_fragment_uid target_pats
+        );
+      co_pattern_variables =
+        (fun target_fragment_uid ->
+           pat_fn target_fragment_uid
+        );
+    }
 ;;
 
 let map_evaluation_holes_to_functions
-    (cont_pat_fn : continuation_pattern_function)
+    (ops : continuation_operations)
+    (source_fragment_uid : Fragment_uid.t)
     (evhds : evaluation_hole_data list)
   : (expression -> expression) list =
   evhds
   |> List.map
     (fun evhd ->
-       match evhd.evhd_target_fragment with
+       match evhd.evhd_target_fragments with
        | None ->
          (* This means that we don't need to continue; we just produce a
             result. *)
          fun value_expr ->
            [%expr BatEnum.singleton(Value_result([%e value_expr]))]
-       | Some target_fragment_uid ->
-         let (_, vars) = cont_pat_fn evhd.evhd_loc target_fragment_uid in
-         let call_tuple =
-           { pexp_desc =
-               Pexp_tuple(
-                 vars
-                 |> List.map
-                   (fun var ->
-                      { pexp_desc = Pexp_ident (mkloc var evhd.evhd_loc);
-                        pexp_loc = evhd.evhd_loc;
-                        pexp_attributes = [];
-                      }
-                   )
-               );
-             pexp_loc = evhd.evhd_loc;
-             pexp_attributes = [];
-           }
+       | Some target_fragment_uids ->
+         let expr_fns =
+           target_fragment_uids
+           |> Fragment_uid_set.enum
+           |> Enum.map (fun target_fragment_uid ->
+               let var_exprs =
+                 ops.co_argument_expressions
+                   evhd.evhd_loc source_fragment_uid target_fragment_uid
+               in
+               let call_tuple =
+                 { pexp_desc = Pexp_tuple(var_exprs);
+                   pexp_loc = evhd.evhd_loc;
+                   pexp_attributes = [];
+                 }
+               in
+               let frag_fn_name = fragment_function_name target_fragment_uid in
+               let frag_fn_expr =
+                 { pexp_desc =
+                     Pexp_ident(
+                       mkloc (Longident.Lident frag_fn_name) evhd.evhd_loc);
+                   pexp_loc = evhd.evhd_loc;
+                   pexp_attributes = [];
+                 }
+               in
+               fun value_expr ->
+                 [%expr [%e frag_fn_expr] [%e call_tuple] [%e value_expr]]
+                   [@metaloc evhd.evhd_loc]
+             )
+           |> List.of_enum
          in
-         let frag_fn_name = fragment_function_name target_fragment_uid in
-         let frag_fn_expr =
-           { pexp_desc =
-               Pexp_ident(
-                 mkloc (Longident.Lident frag_fn_name) evhd.evhd_loc);
-             pexp_loc = evhd.evhd_loc;
-             pexp_attributes = [];
-           }
-         in
-         fun value_expr ->
-           [%expr [%e frag_fn_expr] [%e call_tuple] [%e value_expr]]
-             [@metaloc evhd.evhd_loc]
+         match expr_fns with
+         | [expr_fn] -> expr_fn
+         | _ ->
+           fun value_expr ->
+             let list_expr =
+               expr_fns
+               |> List.fold_left
+                 (fun a efn ->
+                    let e = efn value_expr in
+                    [%expr [%e e]::[%e a]][@metaloc evhd.evhd_loc]
+                 )
+                 [%expr []][@metaloc evhd.evhd_loc]
+             in
+             [%expr BatEnum.concat (BatList.enum [%e list_expr])]
+               [@metaloc evhd.evhd_loc]
     )
 ;;
 
 let map_extension_holes_to_expressions
-    (cont_expr_fn : continuation_expression_function)
+    (ops : continuation_operations)
     (source_fragment_uid : Fragment_uid.t)
     (exhds : extension_hole_data list)
   : expression list =
@@ -278,7 +313,7 @@ let map_extension_holes_to_expressions
          raise @@ Utils.Not_yet_implemented "Path terminates in [%pop]"
        | Some target_fragment_uid ->
          let cont_expr =
-           cont_expr_fn
+           ops.co_expression
              exhd.exhd_loc
              source_fragment_uid
              target_fragment_uid
@@ -290,12 +325,11 @@ let map_extension_holes_to_expressions
 let create_frag_fn_expr
     (loc : Location.t)
     (fragment_group : fragment_group)
-    (cont_expr_fn : continuation_expression_function)
-    (cont_pat_fn : continuation_pattern_function)
+    (ops : continuation_operations)
     (uid : Fragment_uid.t)
   : expression =
   let fragment = Fragment_uid_map.find uid fragment_group.fg_graph in
-  let (_, vars) = cont_pat_fn loc uid in
+  let vars = ops.co_pattern_variables uid in
   let frag_fn_cont_patterns =
     vars
     |> List.map
@@ -324,11 +358,11 @@ let create_frag_fn_expr
   let frag_fn_body =
     let eval_hole_fns =
       fragment.fragment_evaluation_holes
-      |> map_evaluation_holes_to_functions cont_pat_fn
+      |> map_evaluation_holes_to_functions ops uid
     in
     let ext_hole_exprs =
       fragment.fragment_extension_holes
-      |> map_extension_holes_to_expressions cont_expr_fn uid
+      |> map_extension_holes_to_expressions ops uid
     in
     fragment.fragment_code (Some [%expr _input]) eval_hole_fns ext_hole_exprs
     |> process_nondeterminism_extensions
@@ -342,8 +376,7 @@ let create_frag_fn_expr
 let create_frag_fn_decls
     (loc : Location.t)
     (fragment_group : fragment_group)
-    (cont_expr_fn : continuation_expression_function)
-    (cont_pat_fn : continuation_pattern_function)
+    (ops : continuation_operations)
   : structure_item =
   let frag_fn_bindings =
     fragment_group.fg_graph
@@ -353,7 +386,7 @@ let create_frag_fn_decls
     |> Enum.map
       (fun uid ->
          let expr =
-           create_frag_fn_expr loc fragment_group cont_expr_fn cont_pat_fn uid
+           create_frag_fn_expr loc fragment_group ops uid
          in
          let name = fragment_function_name uid in
          { pvb_pat = { ppat_desc = Ppat_var(mkloc name loc);
@@ -375,8 +408,7 @@ let create_frag_fn_decls
 let create_start_fn_decl
     (loc : Location.t)
     (fragment_group : fragment_group)
-    (cont_expr_fn : continuation_expression_function)
-    (cont_pat_fn : continuation_pattern_function)
+    (ops : continuation_operations)
     (start_fn_name : string)
     (function_of_body : expression -> expression)
   : structure_item =
@@ -387,11 +419,11 @@ let create_start_fn_decl
   in
   let evaluation_hole_expression_functions =
     start_fragment.fragment_evaluation_holes
-    |> map_evaluation_holes_to_functions cont_pat_fn
+    |> map_evaluation_holes_to_functions ops start_fragment_uid
   in
   let extension_hole_expressions =
     start_fragment.fragment_extension_holes
-    |> map_extension_holes_to_expressions cont_expr_fn start_fragment_uid
+    |> map_extension_holes_to_expressions ops start_fragment_uid
 
   in
   let start_fun_body =
@@ -423,7 +455,7 @@ let create_cont_fn_decl
     (fragment_group : fragment_group)
     (continuation_type_name : string)
     (cont_fn_name : string)
-    (cont_pat_fn : continuation_pattern_function)
+    (ops : continuation_operations)
   : structure_item =
   let extension_hole_targets =
     (* Only include those fragments which are targets of extension holes.
@@ -447,7 +479,8 @@ let create_cont_fn_decl
     extension_hole_targets
     |> Enum.map
       (fun uid ->
-         let (cont_pat, vars) = cont_pat_fn loc uid in
+         let cont_pat = ops.co_pattern loc uid in
+         let vars = ops.co_pattern_variables uid in
          let case_call_arg =
            match vars with
            | [] -> [%expr ()][@metaloc loc]
@@ -611,18 +644,28 @@ let generate_code_from_function
   let fragment_group =
     func_body
     |> Transformer.do_transform
+      (let rec extension_handler loc attrs ext =
+         match (fst ext).txt with
+         | "pop" ->
+           Transformer.fragment_extension_continuation loc attrs ext
+         | "pick"
+         | "require" ->
+           Transformer.fragment_extension_homomorphism
+             extension_handler loc attrs ext
+         | "pick_lazy" ->
+           Transformer.fragment_extension_nondeterminism
+             extension_handler loc attrs ext
+         | _ ->
+           Transformer.fragment_extension_noop loc attrs ext
+       in extension_handler)
     |> Transformer_monad.run
       (Fragment_types.Fragment_uid.new_context ())
       (new_fresh_variable_context ())
-      (fun ext -> (fst ext).txt = "pop")
-      (fun ext -> (fst ext).txt = "pick" || (fst ext).txt = "require")
   in
   let type_spec =
     create_continuation_type_spec loc continuation_type_name fragment_group
   in
-  let cont_expr_fn, cont_pat_fn =
-    create_continuation_functions fragment_group type_spec
-  in
+  let ops = create_continuation_operations fragment_group type_spec in
   let type_decls =
     (* TODO: ppx_deriving attributes *)
     create_continuation_types type_spec
@@ -647,25 +690,14 @@ let generate_code_from_function
         | Continuation_result of [%t typ]
     ]
   in
-  let frag_fn_decls =
-    create_frag_fn_decls loc fragment_group cont_expr_fn cont_pat_fn
-  in
+  let frag_fn_decls = create_frag_fn_decls loc fragment_group ops in
   let cont_fn_decl =
     create_cont_fn_decl
-      loc
-      fragment_group
-      continuation_type_name
-      cont_fn_name
-      cont_pat_fn
+      loc fragment_group continuation_type_name cont_fn_name ops
   in
   let start_fn_decl =
     create_start_fn_decl
-      loc
-      fragment_group
-      cont_expr_fn
-      cont_pat_fn
-      start_fn_name
-      func_reconstruct
+      loc fragment_group ops start_fn_name func_reconstruct
   in
   type_decls @
   result_type_decl @

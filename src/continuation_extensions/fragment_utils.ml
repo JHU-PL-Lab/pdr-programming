@@ -170,7 +170,7 @@ let pure_fragment
       fragment_input_hole = None;
       fragment_evaluation_holes =
         [ { evhd_loc = e.pexp_loc;
-            evhd_target_fragment = None;
+            evhd_target_fragments = None;
             evhd_bound_variables = Var_map.empty
           }
         ];
@@ -211,7 +211,7 @@ let pure_fragment_with_input
       fragment_input_hole = Some { inhd_loc = loc };
       fragment_evaluation_holes =
         [ { evhd_loc = loc;
-            evhd_target_fragment = None;
+            evhd_target_fragments = None;
             evhd_bound_variables = Var_map.empty
           }
         ];
@@ -307,20 +307,6 @@ let fragment_metadata_free (vars : Var_set.t) (fragment : fragment) : fragment =
   { fragment with
     fragment_free_variables =
       Var_set.union fragment.fragment_free_variables vars
-  }
-;;
-
-(** Given a fragment group, marks the provided set of variables as free in that
-    group.  As each group represents an expression, this is as simple as marking
-    each of the fragments accordingly.  Only the metadata is affected by this
-    operation; no code, entry points, or exit points are modified. *)
-let fragment_group_metadata_free
-    (vars : Var_set.t)
-    (fragment_group : fragment_group)
-  : fragment_group =
-  { fragment_group with
-    fg_graph =
-      Fragment_uid_map.map (fragment_metadata_free vars) fragment_group.fg_graph
   }
 ;;
 
@@ -594,6 +580,19 @@ let fragment_group_code_transform
   group'
 ;;
 
+let fragment_group_code_transform_with_input
+    (loc : Location.t)
+    (transform : expression -> expression -> expression)
+    (group : fragment_group)
+  : fragment_group =
+  let entry_fragment = get_entry_fragment group in
+  let entry_fragment' =
+    fragment_code_transform_with_input loc transform entry_fragment
+  in
+  let group' = replace_entry_fragment entry_fragment' group in
+  group'
+;;
+
 (** Rewrites all of the exit points of a given fragment group to point to a
     particular fragment.  This removes them from the list of exit points,
     yielding a group which has no exits. *)
@@ -607,9 +606,9 @@ let rewrite_exit_points_to (uid : Fragment_uid.t) (g : fragment_group) =
            |> List.map
              (fun evaluation_hole ->
                 { evaluation_hole
-                  with evhd_target_fragment =
-                         Some(Option.default uid
-                                evaluation_hole.evhd_target_fragment)
+                  with evhd_target_fragments =
+                         Some(Option.default (Fragment_uid_set.singleton uid)
+                                evaluation_hole.evhd_target_fragments)
                 }
              )
          in
@@ -975,4 +974,76 @@ let embed_nonbind_many_pure
                then entry_uid
                else uid)
       }
+;;
+
+(**
+   Constructs a fragment group which will execute one of the provided fragment
+   groups nondeterministically.  The resulting fragment group models this
+   nondeterministic execution by constructing a single evaluation hole that
+   includes each of the provided groups' entries as a target.  The value
+   transmitted by this evaluation hole is unit.  The result of this routine is
+   always an impure group due to the nondeterministic control flow which is not
+   directly representable in OCaml code.
+*)
+let nondeterministic_fragment_group
+    (loc : Location.t)
+    (gs : fragment_group list)
+  : fragment_group m =
+  let%bind uid = fresh_uid () in
+  let entry_fragment =
+    { fragment_uid = uid;
+      fragment_loc = loc;
+      fragment_free_variables = Var_set.empty;
+      fragment_externally_bound_variables = Var_map.empty;
+      fragment_input_hole = None;
+      fragment_evaluation_holes =
+        [ { evhd_target_fragments = Some(
+              gs
+              |> List.enum
+              |> Enum.map (fun g -> g.fg_entry)
+              |> Fragment_uid_set.of_enum
+            );
+              evhd_loc = loc;
+              evhd_bound_variables = Var_map.empty;
+            }
+        ];
+      fragment_extension_holes = [];
+      fragment_code =
+        fun input_expr_opt eval_holes_fns ext_holes_exprs ->
+          assert_no_input_expr uid input_expr_opt;
+          let eval_hole_fn =
+            assert_singleton_evaluation_hole_function uid eval_holes_fns
+          in
+          assert_extension_hole_expression_count uid 0 ext_holes_exprs;
+          eval_hole_fn ([%expr ()][@metaloc loc])
+    }
+  in
+  let gs' =
+    gs
+    |> List.map
+      (fragment_group_code_transform_with_input loc
+         (fun e input_hole ->
+            [%expr let () = [%e input_hole] in [%e e]][@metaloc loc]
+         )
+      )
+  in
+  let graph =
+    gs'
+    |> List.enum
+    |> Enum.map (fun g' -> g'.fg_graph)
+    |> Enum.fold merge_fragment_graphs
+      (Fragment_uid_map.singleton uid entry_fragment)
+  in
+  let exit_uids =
+    gs'
+    |> List.enum
+    |> Enum.map (fun g' -> g'.fg_exits)
+    |> Enum.fold Fragment_uid_set.union Fragment_uid_set.empty
+  in
+  return
+    { fg_graph = graph;
+      fg_entry = uid;
+      fg_exits = exit_uids;
+      fg_loc = loc;
+    }
 ;;

@@ -57,8 +57,8 @@ let pp_input_hole_data : input_hole_data pretty_printer = fun f ihd ->
 
 let pp_evaluation_hole_data : evaluation_hole_data pretty_printer = fun f ehd ->
   record_start f ();
-  record_item ~first:true f "target_fragment" (pp_option Fragment_uid.pp)
-    ehd.evhd_target_fragment;
+  record_item ~first:true f "target_fragments" (pp_option Fragment_uid_set.pp)
+    ehd.evhd_target_fragments;
   record_item f "bound_variables" (Var_map.pp @@ pp_option core_type)
     ehd.evhd_bound_variables;
   record_stop f ();
@@ -112,8 +112,10 @@ let pp_fragment : fragment pretty_printer = fun f frag ->
         frag.fragment_evaluation_holes
         |> List.map (fun ehd expr ->
             let uid_str =
-              ehd.evhd_target_fragment
-              |> Option.map Fragment_uid.show
+              ehd.evhd_target_fragments
+              |> Option.map (Pp_utils.pp_to_string
+                               (Pp_utils.pp_set
+                                  Fragment_uid.pp Fragment_uid_set.enum))
               |> Option.default "None"
             in
             let uid_str_expr =

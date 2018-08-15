@@ -1,6 +1,9 @@
 (alias
   (name runtest)
-  (deps test.exe ppx_test.exe)
+  (deps
+    test.exe
+    ppx_test.exe
+  )
   (action (run ./test.exe))
 )
 

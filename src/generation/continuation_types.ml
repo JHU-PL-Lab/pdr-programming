@@ -29,20 +29,31 @@ let _unident (x : Longident.t) : string =
 let create_continuation_type_constructors
     (group : fragment_group)
   : constructor_declaration list * int Fragment_uid_map.t =
-  (* Get all of the UIDs for which we need to make continuations.  The entry
-     fragment does not count: we do not "continue" into the entry fragment;
-     we start there.  (This works nicely for typechecking too, since the entry
-     fragment is the only fragment with no input hole.
+  (* Get all of the UIDs for which we need to make continuations.  We make a
+     continuation for a fragment if it is the target of an extension hole.
+     Whether a fragment is the target of an evaluation hole is irrelevant: if it
+     is the target of an extension hole as well, a continuation is needed; if it
+     is only the target of an evaluation hole, we need not construct a
+     continuation value for it because it is executed immediately.
   *)
   let continuation_uids =
     group.fg_graph
-    |> Fragment_uid_map.keys
-    |> Enum.filter (fun uid -> not @@ Fragment_uid.equal uid group.fg_entry)
+    |> Fragment_uid_map.values
+    |> Enum.map
+      (fun fragment ->
+         fragment.fragment_extension_holes
+         |> List.enum
+         |> Enum.map (fun exhd -> exhd.exhd_target_fragment)
+      )
+    |> Enum.concat
+    |> Enum.filter_map identity
+    |> Fragment_uid_set.of_enum (* eliminate duplicates *)
+    |> Fragment_uid_set.enum
     |> List.of_enum
   in
   let uid_map =
     ( List.enum continuation_uids,
-      0 --^ Fragment_uid_map.cardinal group.fg_graph
+      0 --^ List.length continuation_uids
     )
     |> Enum.combine
     |> Fragment_uid_map.of_enum

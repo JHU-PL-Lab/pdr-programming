@@ -1,5 +1,5 @@
 open Batteries;;
-open Jhupllib;;
+(* open Jhupllib;; *)
 
 (* open Asttypes;; *)
 (* open Parsetree;; *)
@@ -85,7 +85,7 @@ let fabricate_group_for_linear_let n =
           fragment_input_hole = Some({ inhd_loc = Location.none });
           fragment_evaluation_holes =
             [ { evhd_loc = Location.none;
-                evhd_target_fragment = None;
+                evhd_target_fragments = None;
                 evhd_bound_variables = Var_map.singleton x None;
               }
             ];
@@ -109,75 +109,17 @@ let fabricate_group_for_linear_let n =
 let main () =
   let expr =
     [%expr
-      let y : int = 4 in
-      let x = [%pop] in
-      y
+      fun (a : int) ->
+        let%pick (z : t) = List.enum [A;B;C 1;C 2] in
+        let%require C (y : int) = z in
+        let _ = [%pop] in
+        [%pick_lazy
+          (a,y);
+          (y,a)
+        ]
     ]
   in
-  let open Fragment_types in
-  let open Variable_utils in
-  let result_group =
-    expr
-    |> Transformer.do_transform
-    |> Transformer_monad.run
-      (Fragment_uid.new_context ())
-      (new_fresh_variable_context ~prefix:"var" ())
-      (fun (name,_) -> name.txt = "pop")
-  in
-  let spec =
-    Continuation_types.create_continuation_type_spec
-      Location.none "continuation" result_group
-  in
-  let type_decls = Continuation_types.create_continuation_types spec in
-  let structure =
-    type_decls
-    |> List.map
-      (fun x ->
-         { pstr_desc = Pstr_type(Recursive, [x]);
-           pstr_loc = Location.none;
-         }
-      )
-  in
-  print_endline @@ Pp_utils.pp_to_string (Sandbox_crud.pp_structure) structure;
-  print_endline @@ Pp_utils.pp_to_string (Pprintast.structure) structure
+  Continuation_code.generate_code_from_function expr
 ;;
 
-(* main ();; *)
-
-(* prerr_string @@ Fragment_pp.string_of_fragment_group @@
-(Transformer_monad.run
-   (Fragment_types.Fragment_uid.new_context ())
-   (Variable_utils.new_fresh_variable_context ())
-   (fun ext -> (fst ext).txt = "pop")
-   (Transformer.do_transform e)
-);
-prerr_string "\n"; *)
-
-let e =
-  [%expr
-    fun () ->
-      let (x : stack_element) = [%pop] in
-      let (y : stack_element) = [%pop] in
-      let (z : stack_element) = [%pop] in
-      [z;y;x]
-  ]
-;;
-
-(* print_endline @@ Pp_utils.pp_to_string Pprintast.structure @@
-[%str
-  type stack_element = Num of int | Count of int
-];;
-
-print_endline @@ Pp_utils.pp_to_string Pprintast.structure @@
-Continuation_code.generate_code_from_function e
-;; *)
-
-print_endline @@ Pp_utils.pp_to_string Sandbox_crud.pp_structure @@
-[%str
-  type stack_element = Foo | Bar of int | Bottom;;
-  let%transition f a b =
-    let x = [%pop] in
-    (a,b,x)
-;;
-let helper x = x;;
-];;
+main ();;
