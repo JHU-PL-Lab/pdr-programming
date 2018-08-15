@@ -7,11 +7,12 @@ module Foo = struct
     let _ = [%pop] in
     [%pick_lazy
       begin
-        let _ = [%pop] in (a,y)
+        let%require _ = [%pop] in
+        (a,y)
       end;
-      (* begin
+      begin
         (y,a)
-      end; *)
+      end;
     ]
   ;;
 end

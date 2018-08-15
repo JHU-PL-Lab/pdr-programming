@@ -10,6 +10,7 @@ open Asttypes;;
 open Parsetree;;
 
 open Pdr_programming_continuation_extensions;;
+open Pdr_programming_utils.Ast_utils;;
 open Pdr_programming_utils.Variable_utils;;
 
 open Continuation_types;;
@@ -17,6 +18,7 @@ open Flow_analysis;;
 open Fragment_types;;
 
 exception Invalid_transformation of string * Location.t;;
+exception Invalid_use_of_extension of string * extension;;
 
 let mangle_intermediate_name (name : Longident.t) (binder_uid : Fragment_uid.t)
   : Longident.t =
@@ -47,20 +49,24 @@ type continuation_operations =
   };;
 
 let process_nondeterminism_extensions (expression : expression) =
+  print_endline "========================";
+  print_endline @@ Pp_utils.pp_to_string Pprintast.expression expression;
+  print_endline "------------------------";
   let mapper =
     { Ast_mapper.default_mapper with
       expr = fun mapper e ->
+        print_endline @@ Pp_utils.pp_to_string Pprintast.expression e;
         match e with
-        | [%expr [%pick
-          let [%p? val_pat] = [%e? val_expr] in [%e? body]]] ->
+        | [%expr let%pick [%p? val_pat] = [%e? val_expr] in [%e? body]] ->
+          print_endline "(pick case)";
           let val_expr' = mapper.expr mapper val_expr in
           let body' = mapper.expr mapper body in
           [%expr
             BatEnum.concat
               (BatEnum.map (fun [%p val_pat] -> [%e body']) [%e val_expr'])
           ] [@metaloc e.pexp_loc]
-        | [%expr [%require
-          let [%p? val_pat] = [%e? val_expr] in [%e? body]]] ->
+        | [%expr let%require [%p? val_pat] = [%e? val_expr] in [%e? body]] ->
+          print_endline "(require case)";
           let val_expr' = mapper.expr mapper val_expr in
           let body' = mapper.expr mapper body in
           [%expr
@@ -69,10 +75,14 @@ let process_nondeterminism_extensions (expression : expression) =
             | _ -> BatEnum.empty ()
           ] [@metaloc e.pexp_loc]
         | _ ->
+          print_endline "(default case)";
           Ast_mapper.default_mapper.expr mapper e
     }
   in
-  mapper.expr mapper expression
+  let answer = mapper.expr mapper expression in
+  print_endline @@ Pp_utils.pp_to_string Pprintast.expression answer;
+  print_endline "========================";
+  answer
 ;;
 
 let create_continuation_operations
@@ -81,10 +91,6 @@ let create_continuation_operations
     let intermediate_var_map =
       Flow_analysis.determine_intermediates fragment_group
     in
-    print_endline @@ Pp_utils.pp_to_string
-      (Pp_utils.pp_map Fragment_uid.pp Intermediate_var_set.pp
-         Fragment_uid_map.enum)
-      intermediate_var_map;
     let expr_args_fn =
       fun loc source_fragment_uid target_fragment_uid ->
         let target_fragment =
@@ -265,12 +271,7 @@ let map_evaluation_holes_to_functions
                  ops.co_argument_expressions
                    evhd.evhd_loc source_fragment_uid target_fragment_uid
                in
-               let call_tuple =
-                 { pexp_desc = Pexp_tuple(var_exprs);
-                   pexp_loc = evhd.evhd_loc;
-                   pexp_attributes = [];
-                 }
-               in
+               let vars_arg = expression_pseudo_tuple evhd.evhd_loc var_exprs in
                let frag_fn_name = fragment_function_name target_fragment_uid in
                let frag_fn_expr =
                  { pexp_desc =
@@ -281,12 +282,15 @@ let map_evaluation_holes_to_functions
                  }
                in
                fun value_expr ->
-                 [%expr [%e frag_fn_expr] [%e call_tuple] [%e value_expr]]
+                 [%expr [%e frag_fn_expr] [%e vars_arg] [%e value_expr]]
                    [@metaloc evhd.evhd_loc]
              )
            |> List.of_enum
          in
          match expr_fns with
+         | [] ->
+           raise @@ Utils.Invariant_failure
+             "evaluation hole with Some empty exit point list"
          | [expr_fn] -> expr_fn
          | _ ->
            fun value_expr ->
@@ -349,16 +353,7 @@ let create_frag_fn_expr
             "non-simple ident in create_frag_fn_expr"
       )
   in
-  let frag_fn_pat =
-    match frag_fn_cont_patterns with
-    | [] -> [%pat? ()] [@metaloc loc]
-    | [pat] -> pat
-    | _ ->
-      { ppat_desc = Ppat_tuple(frag_fn_cont_patterns);
-        ppat_loc = loc;
-        ppat_attributes = [];
-      }
-  in
+  let frag_fn_pat = pattern_pseudo_tuple loc frag_fn_cont_patterns in
   let frag_fn_body =
     let eval_hole_fns =
       fragment.fragment_evaluation_holes
@@ -485,29 +480,17 @@ let create_cont_fn_decl
       (fun uid ->
          let cont_pat = ops.co_pattern loc uid in
          let vars = ops.co_pattern_variables uid in
-         let case_call_arg =
-           match vars with
-           | [] -> [%expr ()][@metaloc loc]
-           | [var] ->
-             { pexp_desc = Pexp_ident(mkloc var loc);
-               pexp_loc = loc;
-               pexp_attributes = [];
-             }
-           | _ ->
-             { pexp_desc = Pexp_tuple(
-                   vars
-                   |> List.map
-                     (fun var ->
-                        { pexp_desc = Pexp_ident(mkloc var loc);
-                          pexp_loc = loc;
-                          pexp_attributes = [];
-                        }
-                     )
-                 );
-               pexp_loc = loc;
-               pexp_attributes = [];
-             }
+         let vars_exprs =
+           vars
+           |> List.map
+             (fun var ->
+                { pexp_desc = Pexp_ident(mkloc var loc);
+                  pexp_loc = loc;
+                  pexp_attributes = [];
+                }
+             )
          in
+         let case_call_arg = expression_pseudo_tuple loc vars_exprs in
          let case_expr =
            { pexp_desc =
                Pexp_apply(
@@ -636,6 +619,64 @@ let rec unroll_function (e : expression)
   | _ -> (e, (fun new_body -> new_body))
 ;;
 
+(**
+   Performs the continuation code transformation on the provided expression.
+*)
+let transform_expression (expr : expression) : fragment_group =
+  let require_empty_payload ext =
+    match snd ext with
+    | PStr([]) -> ()
+    | _ ->
+      raise @@ Invalid_use_of_extension(
+        Printf.sprintf "Extension %s requires empty payload" (fst ext).txt,
+        ext
+      )
+  in
+  let require_single_expression_payload ext =
+    match snd ext with
+    | PStr([{ pstr_desc = Pstr_eval(e, _); pstr_loc = _ }]) -> e
+    | _ ->
+      raise @@ Invalid_use_of_extension(
+        Printf.sprintf "Extension %s requires single expression payload"
+          (fst ext).txt,
+        ext
+      )
+  in
+  let require_single_let_expression_payload ext =
+    let e = require_single_expression_payload ext in
+    match e with
+    | [%expr let [%p? _] = [%e? _] in [%e? _]] -> ()
+    | _ ->
+      raise @@ Invalid_use_of_extension(
+        Printf.sprintf "Extension %s requires single let expression payload"
+          (fst ext).txt,
+        ext
+      )
+  in
+  let rec extension_handler loc attrs ext =
+    match (fst ext).txt with
+    | "pop" ->
+      require_empty_payload ext;
+      Transformer.fragment_extension_continuation loc attrs ext
+    | "pick"
+    | "require" ->
+      require_single_let_expression_payload ext;
+      Transformer.fragment_extension_homomorphism
+        extension_handler loc attrs ext
+    | "pick_lazy" ->
+      let _ = require_single_expression_payload ext in
+      Transformer.fragment_extension_nondeterminism
+        extension_handler loc attrs ext
+    | _ ->
+      Transformer.fragment_extension_noop loc attrs ext
+  in
+  expr
+  |> Transformer.do_transform extension_handler
+  |> Transformer_monad.run
+    (Fragment_types.Fragment_uid.new_context ())
+    (new_fresh_variable_context ())
+;;
+
 let generate_code_from_function
     ?continuation_type_name:(continuation_type_name = "continuation")
     ?start_fn_name:(start_fn_name = "start")
@@ -645,27 +686,7 @@ let generate_code_from_function
   let func_expr' = rebind_parameters func_expr in
   let func_body, func_reconstruct = unroll_function func_expr' in
   let loc = func_expr.pexp_loc in
-  let fragment_group =
-    func_body
-    |> Transformer.do_transform
-      (let rec extension_handler loc attrs ext =
-         match (fst ext).txt with
-         | "pop" ->
-           Transformer.fragment_extension_continuation loc attrs ext
-         | "pick"
-         | "require" ->
-           Transformer.fragment_extension_homomorphism
-             extension_handler loc attrs ext
-         | "pick_lazy" ->
-           Transformer.fragment_extension_nondeterminism
-             extension_handler loc attrs ext
-         | _ ->
-           Transformer.fragment_extension_noop loc attrs ext
-       in extension_handler)
-    |> Transformer_monad.run
-      (Fragment_types.Fragment_uid.new_context ())
-      (new_fresh_variable_context ())
-  in
+  let fragment_group = transform_expression func_body in
   let type_spec =
     create_continuation_type_spec loc continuation_type_name fragment_group
   in

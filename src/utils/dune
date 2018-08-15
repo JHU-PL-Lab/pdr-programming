@@ -7,4 +7,9 @@
     compiler-libs.common
     jhupllib
   )
+  (preprocess
+    (pps
+      ppx_metaquot
+    )
+  )
 )
