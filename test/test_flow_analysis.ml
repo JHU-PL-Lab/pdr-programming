@@ -26,7 +26,7 @@ let add_determine_intermediates_test
   : unit =
   add_test (name >:: fun _ ->
       let open Fragment_types in
-      let result_group = test_transform_code code in
+      let result_group = Continuation_code.transform_expression code in
       let intermediates = Flow_analysis.determine_intermediates result_group in
       let actual =
         intermediates

@@ -5,6 +5,7 @@ open OUnit2;;
 open Parsetree;;
 
 open Pdr_programming_continuation_extensions;;
+open Pdr_programming_generation;;
 open Pdr_programming_utils.Variable_utils;;
 open Test_utils;;
 
@@ -264,7 +265,7 @@ let add_continuation_transform_test
   : unit =
   add_test (name >:: fun _ ->
       (* Perform transformation *)
-      let result = test_transform_code input in
+      let result = Continuation_code.transform_expression input in
       (* Now verify the expectations of the result.  We can do this by
          converting the fragment group into an expectation (canonically sorting
          unsorted elements) and then inspecting everything in turn.  We'll start
@@ -831,13 +832,13 @@ add_continuation_transform_test
          cttfe_outputs = [
            { cttee_ids = None;
              cttee_extension = false;
-             cttee_bound_vars = [("var0",None)]
+             cttee_bound_vars = [("__var_0",None)]
            }
          ];
          cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
          cttfe_code =
-           [%expr let var0 = INPUT_HOLE in EVAL_HOLE("None", (var0, 4)) ];
+           [%expr let __var_0 = INPUT_HOLE in EVAL_HOLE("None", (__var_0, 4)) ];
        }
       ]
   }
@@ -853,26 +854,26 @@ add_continuation_transform_test
          cttfe_outputs = [
            { cttee_ids = None;
              cttee_extension = false;
-             cttee_bound_vars = [("var0", None); ("var1", None)]
+             cttee_bound_vars = [("__var_0", None); ("__var_1", None)]
            }
          ];
          cttfe_free_vars = [];
-         cttfe_ext_bound_vars = [("var1", 1, None)];
+         cttfe_ext_bound_vars = [("__var_1", 1, None)];
          cttfe_code =
            [%expr
-             let var0 = INPUT_HOLE in EVAL_HOLE("None", (var1, var0, 4, 5))
+             let __var_0 = INPUT_HOLE in EVAL_HOLE("None", (__var_1, __var_0, 4, 5))
            ];
        };
        { cttfe_id = 1; cttfe_has_input = false;
          cttfe_outputs = [
            { cttee_ids = Some [4];
              cttee_extension = true;
-             cttee_bound_vars = [("var1", None)]
+             cttee_bound_vars = [("__var_1", None)]
            }
          ];
          cttfe_free_vars = [];
          cttfe_ext_bound_vars = [];
-         cttfe_code = [%expr let var1 = 2 in EXT_HOLE "4" ];
+         cttfe_code = [%expr let __var_1 = 2 in EXT_HOLE "4" ];
        }
       ]
   }
@@ -934,12 +935,12 @@ add_continuation_transform_test
          cttfe_outputs = [
            { cttee_ids = None;
              cttee_extension = false;
-             cttee_bound_vars = [("var0", None)]
+             cttee_bound_vars = [("__var_0", None)]
            }
          ];
          cttfe_free_vars = ["x"];
          cttfe_ext_bound_vars = [];
-         cttfe_code = [%expr let var0 = INPUT_HOLE in EVAL_HOLE ("None", (var0 x))];
+         cttfe_code = [%expr let __var_0 = INPUT_HOLE in EVAL_HOLE ("None", (__var_0 x))];
        }
       ]
   }
@@ -954,24 +955,24 @@ add_continuation_transform_test
          cttfe_outputs = [
            { cttee_ids = (Some [2]);
              cttee_extension = true;
-             cttee_bound_vars = [("var1", None)]
+             cttee_bound_vars = [("__var_1", None)]
            }
          ];
          cttfe_free_vars = ["f"];
          cttfe_ext_bound_vars = [];
-         cttfe_code = [%expr let var1 = f  in EXT_HOLE "2" ];
+         cttfe_code = [%expr let __var_1 = f  in EXT_HOLE "2" ];
        };
        { cttfe_id = 2; cttfe_has_input = true;
          cttfe_outputs = [
            { cttee_ids = None;
              cttee_extension = false;
-             cttee_bound_vars = [("var0", None);("var1", None)]
+             cttee_bound_vars = [("__var_0", None);("__var_1", None)]
            }
          ];
          cttfe_free_vars = [];
-         cttfe_ext_bound_vars = [("var1", 1, None)];
+         cttfe_ext_bound_vars = [("__var_1", 1, None)];
          cttfe_code =
-           [%expr let var0 = INPUT_HOLE in EVAL_HOLE ("None", (var1 var0)) ];
+           [%expr let __var_0 = INPUT_HOLE in EVAL_HOLE ("None", (__var_1 __var_0)) ];
        }
       ]
   }

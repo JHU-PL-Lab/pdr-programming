@@ -524,19 +524,42 @@ and fragment_constraint
 
 (* TODO: more constructors here *)
 
-and fragment_extension_noop
-    (loc : Location.t) (attributes : attributes) (ext : extension)
+and fragment_extension
+    (loc : Location.t)
+    (attributes : attributes)
+    (name : string loc)
+    (body_opt : fragment_group option)
   : fragment_group m =
-  let e =
-    { pexp_desc = Pexp_extension ext;
-      pexp_loc = loc;
-      pexp_attributes = attributes;
-    }
-  in
-  pure_singleton_fragment_group e Var_set.empty
+  match body_opt with
+  | None ->
+    pure_singleton_fragment_group
+      { pexp_desc = Pexp_extension(name, PStr([]));
+        pexp_loc = loc;
+        pexp_attributes = attributes;
+      }
+      Var_set.empty
+  | Some body ->
+    return @@
+    fragment_group_code_transform
+      (fun e ->
+         let str = [ { pstr_desc = Pstr_eval(e, []);
+                       pstr_loc = loc;
+                     }
+                   ]
+         in
+         { pexp_desc = Pexp_extension(name, PStr(str));
+           pexp_loc = loc;
+           pexp_attributes = attributes
+         }
+      )
+      body
 
-and fragment_extension_continuation
-    (loc : Location.t) (attributes : attributes) (ext : extension)
+(* TODO: more constructors here *)
+
+and fragment_continuation
+    (loc : Location.t)
+    (attributes : attributes)
+    (extension_name : string loc)
   : fragment_group m =
   Pervasives.ignore attributes;
   let%bind uid = fresh_uid () in
@@ -549,7 +572,7 @@ and fragment_extension_continuation
       fragment_evaluation_holes = [];
       fragment_extension_holes =
         [ { exhd_loc = loc;
-            exhd_extension = ext;
+            exhd_extension_name = extension_name;
             exhd_bound_variables = Var_map.empty;
             exhd_target_fragment = None;
           }
@@ -572,73 +595,13 @@ and fragment_extension_continuation
       fg_exits = Fragment_uid_set.singleton uid
     }
 
-and fragment_extension_homomorphism
-    (extension_handler : extension_handler)
-    (loc : Location.t) (attributes : attributes) (ext : extension)
-  : fragment_group m =
-  let (nameloc, payload) = ext in
-  match payload with
-  | PStr([{ pstr_desc = Pstr_eval(e, e_attrs); pstr_loc = str_loc; }]) ->
-    let%bind g = do_transform extension_handler e in
-    g
-    |> Fragment_utils.fragment_group_code_transform
-      (fun e' ->
-         let payload' =
-           PStr([{ pstr_desc = Pstr_eval(e', e_attrs);
-                   pstr_loc = str_loc; }])
-         in
-         { pexp_desc = Pexp_extension(nameloc, payload');
-           pexp_loc = loc;
-           pexp_attributes = attributes;
-         }
-      )
-    |> return
-  | _ ->
-    raise @@
-    Utils.Not_yet_implemented
-      "homomorphic extensions only supported around singleton expressions"
-
-and fragment_extension_nondeterminism
-    (extension_handler : extension_handler)
-    (loc : Location.t) (attributes : attributes) (ext : extension)
+and fragment_nondeterminism
+    (loc : Location.t)
+    (attributes : attributes)
+    (groups : fragment_group list)
   : fragment_group m =
   Pervasives.ignore attributes;
-  match snd ext with
-  | PStr(items) ->
-    (* Each item must be a Pstr_eval. *)
-    let expressions =
-      items
-      |> List.map
-        (function
-          | { pstr_desc = Pstr_eval(e, _); _ } ->
-            (* The expression must be a semicolon-delimited list of expressions
-               to nondeterministically execute.  This will parse as a sequence.
-            *)
-            let rec loop e' =
-              match e' with
-              | { pexp_desc = Pexp_sequence(e1,e2); _; } -> e1 :: loop e2
-              | _ -> [e']
-            in
-            loop e
-          | _ ->
-            raise @@ Utils.Not_yet_implemented(
-              "nondeterministic extensions only supported around " ^
-              "semicolon-delimited expressions")
-        )
-      |> List.concat
-    in
-    (* Convert every expression into a fragment group. *)
-    let%bind gs =
-      List.of_enum <$>
-      mapM (do_transform extension_handler) @@ List.enum expressions
-    in
-    nondeterministic_fragment_group loc gs
-  | _ ->
-    raise @@
-    Utils.Not_yet_implemented(
-      "nondeterministic extensions only supported around semicolon-delimited " ^ "expressions")
-
-(* TODO: more constructors here *)
+  nondeterministic_fragment_group loc groups
 
 and do_transform
     (extension_handler : extension_handler)
@@ -653,20 +616,7 @@ and do_transform
   | Parsetree.Pexp_constant c ->
     fragment_constant loc attrs c
   | Parsetree.Pexp_let(rec_flag,bindings,body) ->
-    let%bind bindings' =
-      bindings
-      |> List.enum
-      |> mapM
-        (fun binding ->
-           let%bind bind_expr = recurse binding.pvb_expr in
-           return
-             (binding.pvb_pat,
-              bind_expr,
-              binding.pvb_attributes,
-              binding.pvb_loc)
-        )
-      |> lift1 List.of_enum
-    in
+    let%bind bindings' = do_transform_bindings extension_handler bindings in
     let%bind body' = recurse body in
     fragment_let loc attrs rec_flag bindings' body'
   | Parsetree.Pexp_function _ ->
@@ -768,4 +718,23 @@ and do_transform_case
   in
   let%bind e = do_transform extension_handler c.pc_rhs in
   return (c.pc_lhs, guard_opt, e)
+
+and do_transform_bindings
+    (extension_handler : extension_handler)
+    (bindings : value_binding list)
+  : (pattern * fragment_group * attributes * Warnings.loc) list m =
+  bindings
+  |> List.enum
+  |> mapM
+    (fun binding ->
+       let%bind bind_expr =
+         do_transform extension_handler binding.pvb_expr
+       in
+       return
+         (binding.pvb_pat,
+          bind_expr,
+          binding.pvb_attributes,
+          binding.pvb_loc)
+    )
+  |> lift1 List.of_enum
 ;;

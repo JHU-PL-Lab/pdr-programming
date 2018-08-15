@@ -79,12 +79,22 @@ val fragment_constraint :
   Location.t -> attributes -> fragment_group -> core_type -> fragment_group m
 ;;
 
-val fragment_extension_noop : extension_handler;;
+val fragment_extension :
+  Location.t -> attributes -> string Asttypes.loc -> fragment_group option ->
+  fragment_group m
+;;
 
-val fragment_extension_continuation : extension_handler;;
+val fragment_continuation :
+  Location.t -> attributes -> string Asttypes.loc -> fragment_group m
+;;
 
-val fragment_extension_homomorphism : extension_handler -> extension_handler;;
-
-val fragment_extension_nondeterminism : extension_handler -> extension_handler;;
+val fragment_nondeterminism :
+  Location.t -> attributes -> fragment_group list -> fragment_group m
+;;
 
 val do_transform : extension_handler -> expression -> fragment_group m;;
+
+val do_transform_bindings :
+  extension_handler -> value_binding list ->
+  (pattern * fragment_group * attributes * Warnings.loc) list m
+;;

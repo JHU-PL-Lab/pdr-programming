@@ -66,11 +66,8 @@ let pp_evaluation_hole_data : evaluation_hole_data pretty_printer = fun f ehd ->
 
 let pp_extension_hole_data : extension_hole_data pretty_printer = fun f ehd ->
   record_start f ();
-  record_item ~first:true f "extension" expression
-    { pexp_desc = Pexp_extension ehd.exhd_extension;
-      pexp_loc = ehd.exhd_loc;
-      pexp_attributes = []
-    };
+  record_item ~first:true f "extension_name" Format.pp_print_string
+    ehd.exhd_extension_name.txt;
   record_item f "target_fragment" (pp_option Fragment_uid.pp)
     ehd.exhd_target_fragment;
   record_item f "bound_variables" (Var_map.pp @@ pp_option core_type)

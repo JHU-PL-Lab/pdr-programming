@@ -49,8 +49,9 @@ type extension_hole_data =
   { exhd_loc : Location.t;
     (** The location describing the extension that created the hole. *)
 
-    exhd_extension : extension;
-    (** The extension which caused the creation of this action hole. *)
+    exhd_extension_name : string Asttypes.loc;
+    (** The name of the extension which caused the creation of this action
+        hole. *)
 
     exhd_target_fragment : Fragment_uid.t option;
     (** The ID of the fragment to which this hole leads, or [None] to indicate

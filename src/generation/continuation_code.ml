@@ -645,7 +645,11 @@ let transform_expression (expr : expression) : fragment_group =
   let require_single_let_expression_payload ext =
     let e = require_single_expression_payload ext in
     match e with
-    | [%expr let [%p? _] = [%e? _] in [%e? _]] -> ()
+    | { pexp_desc = Pexp_let(recflag, [binding], body);
+        pexp_loc = let_loc;
+        pexp_attributes = let_attrs
+      } ->
+      (recflag, binding, body, let_loc, let_attrs)
     | _ ->
       raise @@ Invalid_use_of_extension(
         Printf.sprintf "Extension %s requires single let expression payload"
@@ -654,21 +658,80 @@ let transform_expression (expr : expression) : fragment_group =
       )
   in
   let rec extension_handler loc attrs ext =
+    let open Transformer_monad in
     match (fst ext).txt with
     | "pop" ->
       require_empty_payload ext;
-      Transformer.fragment_extension_continuation loc attrs ext
+      Transformer.fragment_continuation loc attrs (fst ext)
     | "pick"
     | "require" ->
-      require_single_let_expression_payload ext;
-      Transformer.fragment_extension_homomorphism
-        extension_handler loc attrs ext
+      (* Special handling is required for these extensions.  We need to add the
+         extension to the fragment that the "let" binding winds up in, which may
+         not be the entry fragment if the bindings are impure.  In both cases,
+         the UID of the fragment containing the let will be the same as the UID
+         of the body, so we can just manipulate the fragment at that UID.
+
+         In particular, this is necessary to handle a case like
+             let%require _ = [%pop] in ...
+         because otherwise, the require annotation is placed on the new entry
+         fragment rather than in the let binding.
+      *)
+      let (recflag, binding, body, let_loc, let_attrs) =
+        require_single_let_expression_payload ext
+      in
+      let%bind body_group = Transformer.do_transform extension_handler body in
+      let let_uid = body_group.fg_entry in
+      let%bind bindings' =
+        Transformer.do_transform_bindings extension_handler [binding]
+      in
+      let%bind let_group =
+        Transformer.fragment_let let_loc let_attrs recflag bindings' body_group
+      in
+      (* Find the fragment which now contains the let binding that corresponds
+         to the originally-annotated binding and wrap it in the extension. *)
+      let frag = Fragment_uid_map.find let_uid let_group.fg_graph in
+      let frag' =
+        frag
+        |> Fragment_utils.fragment_code_transform
+          (fun code ->
+             { pexp_desc =
+                 Pexp_extension(
+                   fst ext,
+                   PStr([{ pstr_desc = Pstr_eval(code, []);
+                           pstr_loc = loc;
+                         }])
+                 );
+               pexp_loc = loc;
+               pexp_attributes = attrs;
+             }
+          )
+      in
+      let let_group' =
+        { let_group with
+          fg_graph = Fragment_uid_map.add let_uid frag' let_group.fg_graph
+        }
+      in
+      return let_group'
     | "pick_lazy" ->
-      let _ = require_single_expression_payload ext in
-      Transformer.fragment_extension_nondeterminism
-        extension_handler loc attrs ext
+      let e = require_single_expression_payload ext in
+      let rec loop e' =
+        match e' with
+        | [%expr [%e? e1];[%e? e2]] -> e1 :: loop e2
+        | _ -> [e']
+      in
+      let es = loop e in
+      let%bind gs =
+        es
+        |> List.enum
+        |> Enum.map (Transformer.do_transform extension_handler)
+        |> sequence
+        |> lift1 List.of_enum
+      in
+      Transformer.fragment_nondeterminism loc attrs gs
     | _ ->
-      Transformer.fragment_extension_noop loc attrs ext
+      let e = require_single_expression_payload ext in
+      let%bind g = Transformer.do_transform extension_handler e in
+      Transformer.fragment_extension loc attrs (fst ext) (Some g)
   in
   expr
   |> Transformer.do_transform extension_handler

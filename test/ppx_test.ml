@@ -7,7 +7,7 @@ module Foo = struct
     let _ = [%pop] in
     [%pick_lazy
       begin
-        let%require _ = [%pop] in
+        let%require B = let _ = [%pop] in B in
         (a,y)
       end;
       begin

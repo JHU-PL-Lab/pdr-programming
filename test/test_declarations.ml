@@ -7,8 +7,6 @@ open Parsetree;;
 
 open Pdr_programming_generation;;
 
-open Test_utils;;
-
 (* ****************************************************************************
    Initialization and tooling
 *)
@@ -26,7 +24,7 @@ let add_declaration_generation_test
     (expected : structure)
   : unit =
   add_test (name >:: fun _ ->
-      let result_group = test_transform_code code in
+      let result_group = Continuation_code.transform_expression code in
       let spec =
         Continuation_types.create_continuation_type_spec
           Location.none "continuation" result_group
