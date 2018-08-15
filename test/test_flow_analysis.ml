@@ -104,7 +104,7 @@ add_determine_intermediates_test
     in
     a
   ]
-  [(4, [("a", 1)])]
+  [(3, [("a", 1)]); (4, [("a", 1)])]
   (* Even though fragment 4 (the innermost use of "a") has "a" externally bound
      by fragment 3 (the second fragment which binds "a" to "2"), it should also
      indicate that the "a" from fragment 1 (the entry fragment) is intermediate

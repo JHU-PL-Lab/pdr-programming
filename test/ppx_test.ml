@@ -6,8 +6,12 @@ module Foo = struct
     let%require C (y : int) = z in
     let _ = [%pop] in
     [%pick_lazy
-      (a,y);
-      (y,a)
+      begin
+        let _ = [%pop] in (a,y)
+      end;
+      (* begin
+        (y,a)
+      end; *)
     ]
   ;;
 end

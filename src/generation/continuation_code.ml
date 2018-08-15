@@ -81,6 +81,10 @@ let create_continuation_operations
     let intermediate_var_map =
       Flow_analysis.determine_intermediates fragment_group
     in
+    print_endline @@ Pp_utils.pp_to_string
+      (Pp_utils.pp_map Fragment_uid.pp Intermediate_var_set.pp
+         Fragment_uid_map.enum)
+      intermediate_var_map;
     let expr_args_fn =
       fun loc source_fragment_uid target_fragment_uid ->
         let target_fragment =

@@ -43,50 +43,50 @@ exception Cyclic_graph_in_topological_sort;;
 
 let topological_sort (m : Fragment_uid_fragment_uid_multimap.t)
   : Fragment_uid.t list =
-  let mark_map = ref (
-      m
-      |> Fragment_uid_fragment_uid_multimap.enum_by_key
-      |> Enum.map (fun (uid,uids) ->
-          Enum.append
-            (Enum.singleton (uid,Unmarked))
-            (uids
-             |> Fragment_uid_fragment_uid_multimap.S.enum
-             |> Enum.map (fun uid' -> (uid',Unmarked))
-            )
-        )
-      |> Enum.concat
-      |> Fragment_uid_map.of_enum
-    )
+  let all_uids =
+    m
+    |> Fragment_uid_fragment_uid_multimap.enum_by_key
+    |> Enum.map
+      (fun (uid,uids) ->
+         Enum.append (Enum.singleton uid) @@
+         Fragment_uid_fragment_uid_multimap.S.enum uids
+      )
+    |> Enum.concat
+    |> Fragment_uid_set.of_enum
   in
-  let unmarked_set =
-    ref @@ Fragment_uid_set.of_enum @@ Fragment_uid_map.keys !mark_map
+  let initial_mark_state =
+    all_uids
+    |> Fragment_uid_set.enum
+    |> Enum.map (fun uid -> (uid,Unmarked))
+    |> Fragment_uid_map.of_enum
   in
-  let rec visit (n : Fragment_uid.t) : Fragment_uid.t Deque.t =
-    match Fragment_uid_map.find n !mark_map with
-    | Complete -> Deque.empty
+  let rec visit unmarked_set mark_map result_list uid =
+    let mark = Fragment_uid_map.find uid mark_map in
+    match mark with
+    | Complete -> (unmarked_set, mark_map, result_list)
     | In_progress -> raise Cyclic_graph_in_topological_sort
     | Unmarked ->
-      unmarked_set := Fragment_uid_set.remove n !unmarked_set;
-      mark_map := Fragment_uid_map.add n In_progress !mark_map;
-      let results =
-        Fragment_uid_fragment_uid_multimap.find n m
-        |> Enum.map visit
+      let mark_map' = Fragment_uid_map.add uid In_progress mark_map in
+      let unmarked_set' = Fragment_uid_set.remove uid unmarked_set in
+      let (unmarked_set'', mark_map'',result_list'') =
+        Fragment_uid_fragment_uid_multimap.find uid m
         |> Enum.fold
-          (fun a e -> Deque.append a e)
-          Deque.empty
+          (fun (us,mm,rl) uid' -> visit us mm rl uid')
+          (unmarked_set', mark_map', result_list)
       in
-      mark_map := Fragment_uid_map.add n Complete !mark_map;
-      Deque.cons n results
+      let mark_map''' = Fragment_uid_map.add uid Complete mark_map'' in
+      let result_list''' = uid :: result_list'' in
+      (unmarked_set'', mark_map''', result_list''')
   in
-  let rec loop () : Fragment_uid.t Deque.t =
-    if Fragment_uid_set.is_empty !unmarked_set then
-      Deque.empty
-    else begin
-      let some_work =
-        (visit (Enum.get_exn @@ Fragment_uid_set.enum !unmarked_set))
+  let rec loop unmarked_set mark_map result_list =
+    if Fragment_uid_set.is_empty unmarked_set then result_list else
+      let uid =
+        Enum.get_exn @@ Fragment_uid_set.enum unmarked_set
       in
-      Deque.append some_work (loop ())
-    end
+      let (unmarked_set',mark_map',result_list') =
+        visit unmarked_set mark_map result_list uid
+      in
+      loop unmarked_set' mark_map' result_list'
   in
-  List.of_enum @@ Deque.enum @@ loop ()
+  loop all_uids initial_mark_state []
 ;;
