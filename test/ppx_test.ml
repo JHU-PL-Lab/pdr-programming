@@ -9,7 +9,7 @@ module%continuation Foo = struct
     ();
     let%pick (z : t) = List.enum [A;B;C 1;C 2] in
     let%require C (y : int) = z in
-    let _ = [%pop 4] in
+    [%pop 4];
     [%pick_lazy
       begin
         let%require B = let _ = [%pop] in B in

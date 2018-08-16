@@ -507,11 +507,17 @@ and fragment_ifthenelse
   in
   return @@ embed_nonbind loc g1 ifthenelse_hole_group
 
-and fragment_sequence
+(* FIXME: Ideally, the following should work.  However,
+   sequentialize_fragment_groups generates fresh variables without annotations,
+   so things break down when either side is impure.  Consider adding e.g. the
+   ability for a fragment to remember its (optional) annotated type so that
+   sequentialize_fragment_groups can use that as necessary?
+*)
+(* and fragment_sequence
     (loc : Location.t) (attributes : attributes)
     (g1 : fragment_group) (g2 : fragment_group)
-  : fragment_group m =
-  sequentialize_fragment_groups
+   : fragment_group m =
+   sequentialize_fragment_groups
     loc
     [g1;g2]
     (fun exprs ->
@@ -526,7 +532,17 @@ and fragment_sequence
            Printf.sprintf
              "In fragment_sequence, sequentialize_fragment_groups returned %d expressions when two groups were provided."
              (List.length exprs))
-    )
+    ) *)
+and fragment_sequence
+    (loc : Location.t) (attributes : attributes)
+    (g1 : fragment_group) (g2 : fragment_group)
+   : fragment_group m =
+  fragment_let
+    loc
+    attributes
+    Nonrecursive
+    [([%pat? ()][@metaloc loc], g1, [], loc)]
+    g2
 
 (* TODO: more constructors here *)
 
