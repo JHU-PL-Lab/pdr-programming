@@ -10,10 +10,36 @@ open Pdr_programming_generation;;
 open Pdr_programming_utils.Ast_utils;;
 open Pdr_programming_utils.Utils;;
 
+let reprocess (structure : structure) : structure =
+  (* Okay... let's try to convince Ocaml_migrate_parsetree to run everything
+     again on this structure.
+  *)
+  let reprocess_mapper =
+    let open Migrate_parsetree.Driver in
+    OCaml_current.Ast.make_top_mapper
+      ~signature:(fun sg ->
+          let config =
+            make_config ~tool_name:"pdr-programming(reprocessing)" ()
+          in
+          rewrite_signature config (module OCaml_current) sg
+          |> migrate_some_signature (module OCaml_current)
+        )
+      ~structure:(fun str ->
+          let config =
+            make_config ~tool_name:"pdr-programming(reprocessing)" ()
+          in
+          rewrite_structure config (module OCaml_current) str
+          |> migrate_some_structure (module OCaml_current)
+        )
+  in
+  reprocess_mapper.structure reprocess_mapper structure
+;;
+
 type continuation_conversion_configuration =
   { ccc_start_function_name : string;
     ccc_continue_function_name : string;
     ccc_continuation_type_name : string;
+    ccc_continuation_type_attributes : attributes;
     ccc_continuation_data_type : core_type option;
     ccc_continuation_data_default : expression option;
   }
@@ -26,7 +52,8 @@ type parse_result =
   | Parse_error of string
 ;;
 
-let parse_continuation_configuration_extension (ext : extension)
+let parse_continuation_configuration_extension
+    (ext : extension) (attrs : attributes)
   : parse_result =
   let config_expr ?description:(description="an expression") ext expr_fn =
     match snd ext with
@@ -50,6 +77,11 @@ let parse_continuation_configuration_extension (ext : extension)
            Parse_error(Printf.sprintf "%s payload must be a string constant"
                          (fst ext).txt)
       )
+  in
+  let config_attributes ext attrs_fn =
+    match snd ext with
+    | PStr([]) -> attrs_fn attrs
+    | _ -> Parse_error(Printf.sprintf "%s must have no payload" (fst ext).txt)
   in
   match (fst ext).txt with
   | "start_function_name" ->
@@ -76,6 +108,16 @@ let parse_continuation_configuration_extension (ext : extension)
          Configuration_change(
            fun config -> { config with
                            ccc_continuation_type_name = s;
+                         }
+         )
+      )
+  | "continuation_type_attributes" ->
+    config_attributes ext
+      (fun a ->
+         Configuration_change(
+           fun config -> { config with
+                           ccc_continuation_type_attributes =
+                             config.ccc_continuation_type_attributes @ a
                          }
          )
       )
@@ -113,6 +155,7 @@ let convert_continuation_structure
     { ccc_start_function_name = "start";
       ccc_continue_function_name = "cont";
       ccc_continuation_type_name = "continuation";
+      ccc_continuation_type_attributes = [];
       ccc_continuation_data_type = None;
       ccc_continuation_data_default = None;
     }
@@ -123,9 +166,9 @@ let convert_continuation_structure
     |> List.map
       (fun (structure_item : structure_item) ->
          match structure_item.pstr_desc with
-         | Pstr_extension(ext, _) ->
+         | Pstr_extension(ext, attrs) ->
            begin
-             match parse_continuation_configuration_extension ext with
+             match parse_continuation_configuration_extension ext attrs with
              | Inert_extension -> ([structure_item], identity)
              | Configuration_change f -> ([], f)
              | Parse_error(errmsg) ->
@@ -182,6 +225,8 @@ let convert_continuation_structure
                        ~cont_fn_name:configuration.ccc_continue_function_name
                        ~continuation_type_name:
                          configuration.ccc_continuation_type_name
+                       ~continuation_type_attributes:
+                         configuration.ccc_continuation_type_attributes
                        ~continuation_data_type:
                          configuration.ccc_continuation_data_type
                        ~continuation_data_default:
@@ -228,8 +273,7 @@ let convert_continuation_structure
   result_structure @ errs
 ;;
 
-let continuation_transform_structure_item mapper structure_item
-  : structure_item =
+let continuation_transform_structure_item mapper structure_item : structure =
   (* We need to run last; all of the PPX extensions inside of this structure
      item should be processed before we try to mess with control flow. *)
   let structure_item' = default_mapper.structure_item mapper structure_item in
@@ -263,19 +307,30 @@ let continuation_transform_structure_item mapper structure_item
               );
           }
         in
+        (* Once the new module has been constructed, it may have several pieces
+           of code that expect to be processed by the PPX extensions again.
+           This is *gross*, but let's run the mapper on this new code.  Note
+           that the continuation extensions are gone now, so we won't loop.
+        *)
+        let new_module_structure = reprocess [new_module] in
         print_endline @@ Jhupllib.Pp_utils.pp_to_string Pprintast.structure
-          [new_module];
-        new_module;
+          new_module_structure;
+        new_module_structure;
       | _ ->
-        error_as_structure_item structure_item'.pstr_loc @@
-        "\"continuation\" extension must be applied to a single module " ^
-        "structure"
+        [error_as_structure_item structure_item'.pstr_loc @@
+         "\"continuation\" extension must be applied to a single module " ^
+         "structure"
+        ]
     end
-  | _ -> structure_item'
+  | _ -> [structure_item']
 ;;
 
 let mapper =
   { default_mapper with
-    structure_item = continuation_transform_structure_item
+    structure =
+      fun mapper structure ->
+        structure
+        |> List.map (continuation_transform_structure_item mapper)
+        |> List.concat
   }
 ;;

@@ -817,6 +817,7 @@ let generate_code_from_function
     ?continuation_type_name:(continuation_type_name = "continuation")
     ?start_fn_name:(start_fn_name = "start")
     ?cont_fn_name:(cont_fn_name = "cont")
+    ?continuation_type_attributes:(continuation_type_attributes=[])
     ?continuation_data_type:(continuation_data_type = (None : core_type option))
     ?continuation_data_default:(continuation_data_default =
                                 (None : expression option)
@@ -836,7 +837,13 @@ let generate_code_from_function
     create_continuation_types type_spec
     |> List.map
       (fun type_decl ->
-         { pstr_desc = Pstr_type(Recursive, [type_decl]);
+         let type_decl' =
+           { type_decl with
+             ptype_attributes =
+               type_decl.ptype_attributes @ continuation_type_attributes
+           }
+         in
+         { pstr_desc = Pstr_type(Recursive, [type_decl']);
            pstr_loc = loc;
          }
       )

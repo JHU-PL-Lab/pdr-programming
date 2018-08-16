@@ -60,10 +60,14 @@
   )
   (libraries
     jhupllib
+    ppx_deriving_yojson
   )
   (preprocess
     (pps
       pdr-programming.ppx
+      ppx_deriving
+      ppx_deriving.std
+      ppx_deriving_yojson
     )
   )
   (flags
