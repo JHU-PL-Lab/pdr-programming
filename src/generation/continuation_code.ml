@@ -17,9 +17,6 @@ open Continuation_types;;
 open Flow_analysis;;
 open Fragment_types;;
 
-exception Invalid_transformation of string * Location.t;;
-exception Invalid_use_of_extension of string * extension;;
-
 let mangle_intermediate_name (name : Longident.t) (binder_uid : Fragment_uid.t)
   : Longident.t =
   match name with
@@ -46,19 +43,15 @@ type continuation_operations =
       Location.t -> Fragment_uid.t -> pattern;
     co_pattern_variables :
       Fragment_uid.t -> Longident.t list;
-  };;
+  }
+;;
 
 let process_nondeterminism_extensions (expression : expression) =
-  print_endline "========================";
-  print_endline @@ Pp_utils.pp_to_string Pprintast.expression expression;
-  print_endline "------------------------";
   let mapper =
     { Ast_mapper.default_mapper with
       expr = fun mapper e ->
-        print_endline @@ Pp_utils.pp_to_string Pprintast.expression e;
         match e with
         | [%expr let%pick [%p? val_pat] = [%e? val_expr] in [%e? body]] ->
-          print_endline "(pick case)";
           let val_expr' = mapper.expr mapper val_expr in
           let body' = mapper.expr mapper body in
           [%expr
@@ -66,7 +59,6 @@ let process_nondeterminism_extensions (expression : expression) =
               (BatEnum.map (fun [%p val_pat] -> [%e body']) [%e val_expr'])
           ] [@metaloc e.pexp_loc]
         | [%expr let%require [%p? val_pat] = [%e? val_expr] in [%e? body]] ->
-          print_endline "(require case)";
           let val_expr' = mapper.expr mapper val_expr in
           let body' = mapper.expr mapper body in
           [%expr
@@ -75,14 +67,10 @@ let process_nondeterminism_extensions (expression : expression) =
             | _ -> BatEnum.empty ()
           ] [@metaloc e.pexp_loc]
         | _ ->
-          print_endline "(default case)";
           Ast_mapper.default_mapper.expr mapper e
     }
   in
-  let answer = mapper.expr mapper expression in
-  print_endline @@ Pp_utils.pp_to_string Pprintast.expression answer;
-  print_endline "========================";
-  answer
+  mapper.expr mapper expression
 ;;
 
 let create_continuation_operations
@@ -627,19 +615,21 @@ let transform_expression (expr : expression) : fragment_group =
     match snd ext with
     | PStr([]) -> ()
     | _ ->
-      raise @@ Invalid_use_of_extension(
-        Printf.sprintf "Extension %s requires empty payload" (fst ext).txt,
-        ext
+      raise @@ Transformer.Transformation_failure(
+        mkloc
+          (Printf.sprintf "Extension %s requires empty payload" (fst ext).txt)
+          (fst ext).loc
       )
   in
   let require_single_expression_payload ext =
     match snd ext with
     | PStr([{ pstr_desc = Pstr_eval(e, _); pstr_loc = _ }]) -> e
     | _ ->
-      raise @@ Invalid_use_of_extension(
-        Printf.sprintf "Extension %s requires single expression payload"
-          (fst ext).txt,
-        ext
+      raise @@ Transformer.Transformation_failure(
+        mkloc
+          (Printf.sprintf "Extension %s requires single expression payload"
+             (fst ext).txt)
+          (fst ext).loc
       )
   in
   let require_single_let_expression_payload ext =
@@ -651,10 +641,11 @@ let transform_expression (expr : expression) : fragment_group =
       } ->
       (recflag, binding, body, let_loc, let_attrs)
     | _ ->
-      raise @@ Invalid_use_of_extension(
-        Printf.sprintf "Extension %s requires single let expression payload"
-          (fst ext).txt,
-        ext
+      raise @@ Transformer.Transformation_failure(
+        mkloc
+          (Printf.sprintf "Extension %s requires single let expression payload"
+             (fst ext).txt)
+          (fst ext).loc
       )
   in
   let rec extension_handler loc attrs ext =

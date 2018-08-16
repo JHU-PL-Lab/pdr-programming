@@ -27,6 +27,10 @@ type extension_handler =
   Location.t -> attributes -> extension -> fragment_group m
 ;;
 
+(** An exception to be raised when transformation fails.  Used to generate
+    appropriate error nodes for the compiler. *)
+exception Transformation_failure of string Asttypes.loc;;
+
 val sequentialize_fragment_groups :
   Location.t -> fragment_group list -> (expression list -> expression) ->
   fragment_group m

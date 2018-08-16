@@ -1,3 +1,4 @@
+open Location;;
 open Asttypes;;
 open Parsetree;;
 
@@ -23,4 +24,26 @@ let pattern_pseudo_tuple (loc : Location.t) (pats : pattern list)
       ppat_loc = loc;
       ppat_attributes = [];
     }
+;;
+
+let error_as_type (loc : Location.t) (message : string) : core_type =
+  { ptyp_desc =
+      Ptyp_extension(
+        mkloc "ocaml.error" loc,
+        PStr([
+            { pstr_desc =
+                Pstr_eval(
+                  { pexp_desc = Pexp_constant(Pconst_string(message,None));
+                    pexp_loc = loc;
+                    pexp_attributes = [];
+                  },
+                  []
+                );
+              pstr_loc = loc;
+            }
+          ])
+      );
+    ptyp_loc = loc;
+    ptyp_attributes = [];
+  }
 ;;

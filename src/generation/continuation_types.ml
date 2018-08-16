@@ -6,13 +6,12 @@ open Location;;
 open Parsetree;;
 
 open Pdr_programming_continuation_extensions.Fragment_types;;
+open Pdr_programming_utils.Ast_utils;;
 open Pdr_programming_utils.Big_variant;;
 open Pdr_programming_utils.Type_utils;;
 open Pdr_programming_utils.Variable_utils;;
 
 open Flow_analysis;;
-
-exception Unannotated_continuation_variable of Longident.t * Location.t;;
 
 type continuation_type_spec =
   { cts_bvs : big_variant_spec;
@@ -82,9 +81,12 @@ let create_continuation_type_constructors
                   match ebv.ebv_type with
                   | Some typ -> typ
                   | None ->
-                    raise @@
-                    Unannotated_continuation_variable(
-                      ebv.ebv_variable, ebv.ebv_bind_loc)
+                    let message =
+                      Printf.sprintf
+                        "Unannotated variable used in continuation: %s"
+                        (Longident_value.show ebv.ebv_variable)
+                    in
+                    error_as_type ebv.ebv_bind_loc message
                )
            in
            let intermediate_variable_types : core_type Enum.t =
@@ -109,9 +111,12 @@ let create_continuation_type_constructors
                   match iv.iv_type with
                   | Some typ -> typ
                   | None ->
-                    raise @@
-                    Unannotated_continuation_variable(
-                      iv.iv_name, iv.iv_bind_loc)
+                    let message =
+                      Printf.sprintf
+                        "Unannotated variable used in continuation: %s"
+                        (Longident_value.show iv.iv_name)
+                    in
+                    error_as_type iv.iv_bind_loc message
                )
            in
            let param_types =

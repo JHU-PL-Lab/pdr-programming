@@ -14,6 +14,8 @@ type extension_handler =
   Location.t -> attributes -> extension -> fragment_group m
 ;;
 
+exception Transformation_failure of string loc;;
+
 (* FIXME: aren't function parameters resolved from right to left in OCaml?
    Are we messing that up with our sequentialization here? *)
 (* FIXME: right now, we're not consistently maintaining many invariants w.r.t.
@@ -610,101 +612,113 @@ and do_transform
   let recurse = do_transform extension_handler in
   let loc = e.pexp_loc in
   let attrs = e.pexp_attributes in
-  match e.pexp_desc with
-  | Parsetree.Pexp_ident x ->
-    fragment_ident loc attrs x
-  | Parsetree.Pexp_constant c ->
-    fragment_constant loc attrs c
-  | Parsetree.Pexp_let(rec_flag,bindings,body) ->
-    let%bind bindings' = do_transform_bindings extension_handler bindings in
-    let%bind body' = recurse body in
-    fragment_let loc attrs rec_flag bindings' body'
-  | Parsetree.Pexp_function _ ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_function")
-  | Parsetree.Pexp_fun(_,_,_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_fun")
-  | Parsetree.Pexp_apply(fn,args) ->
-    let%bind g_fn = recurse fn in
-    let labels,e_args = List.split args in
-    let%bind g_args = mapM recurse @@ List.enum e_args in
-    let args' = List.combine labels @@ List.of_enum g_args in
-    fragment_apply loc attrs g_fn args'
-  | Parsetree.Pexp_match(e,cases) ->
-    let%bind g = recurse e in
-    let%bind fcases =
-      lift1 List.of_enum @@
-      mapM (do_transform_case extension_handler) @@ List.enum cases
+  try
+    begin
+      match e.pexp_desc with
+      | Parsetree.Pexp_ident x ->
+        fragment_ident loc attrs x
+      | Parsetree.Pexp_constant c ->
+        fragment_constant loc attrs c
+      | Parsetree.Pexp_let(rec_flag,bindings,body) ->
+        let%bind bindings' = do_transform_bindings extension_handler bindings in
+        let%bind body' = recurse body in
+        fragment_let loc attrs rec_flag bindings' body'
+      | Parsetree.Pexp_function _ ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_function")
+      | Parsetree.Pexp_fun(_,_,_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_fun")
+      | Parsetree.Pexp_apply(fn,args) ->
+        let%bind g_fn = recurse fn in
+        let labels,e_args = List.split args in
+        let%bind g_args = mapM recurse @@ List.enum e_args in
+        let args' = List.combine labels @@ List.of_enum g_args in
+        fragment_apply loc attrs g_fn args'
+      | Parsetree.Pexp_match(e,cases) ->
+        let%bind g = recurse e in
+        let%bind fcases =
+          lift1 List.of_enum @@
+          mapM (do_transform_case extension_handler) @@ List.enum cases
+        in
+        fragment_match loc attrs g fcases
+      | Parsetree.Pexp_try(_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_try")
+      | Parsetree.Pexp_tuple(es) ->
+        let%bind gs = mapM recurse @@ List.enum es in
+        fragment_tuple loc attrs @@ List.of_enum gs
+      | Parsetree.Pexp_construct(name,eo) ->
+        let%bind go =
+          match eo with
+          | Some e -> lift1 Option.some @@ recurse e
+          | None -> return None
+        in
+        fragment_construct loc attrs name go
+      | Parsetree.Pexp_variant(_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_variant")
+      | Parsetree.Pexp_record(_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_record")
+      | Parsetree.Pexp_field(_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_field")
+      | Parsetree.Pexp_setfield(_,_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_setfield")
+      | Parsetree.Pexp_array _ ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_array")
+      | Parsetree.Pexp_ifthenelse(e1,e2,e3o) ->
+        let e3 = Option.default_delayed (fun () -> [%expr ()]) e3o in
+        let%bind g1 = recurse e1 in
+        let%bind g2 = recurse e2 in
+        let%bind g3 = recurse e3 in
+        fragment_ifthenelse loc attrs g1 g2 g3
+      | Parsetree.Pexp_sequence(_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_sequence")
+      | Parsetree.Pexp_while(_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_while")
+      | Parsetree.Pexp_for(_,_,_,_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_for")
+      | Parsetree.Pexp_constraint(e,t) ->
+        let%bind g = recurse e in
+        fragment_constraint loc attrs g t
+      | Parsetree.Pexp_coerce(_,_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_coerce")
+      | Parsetree.Pexp_send(_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_send")
+      | Parsetree.Pexp_new _ ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_new")
+      | Parsetree.Pexp_setinstvar(_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_setinstvar")
+      | Parsetree.Pexp_override _ ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_override")
+      | Parsetree.Pexp_letmodule(_,_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_letmodule")
+      | Parsetree.Pexp_letexception(_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_letexception")
+      | Parsetree.Pexp_assert _ ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_assert")
+      | Parsetree.Pexp_lazy _ ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_lazy")
+      | Parsetree.Pexp_poly(_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_poly")
+      | Parsetree.Pexp_object _ ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_object")
+      | Parsetree.Pexp_newtype(_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_newtype")
+      | Parsetree.Pexp_pack _ ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_pack")
+      | Parsetree.Pexp_open(_,_,_) ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_open")
+      | Parsetree.Pexp_extension ext ->
+        extension_handler loc attrs ext
+      | Parsetree.Pexp_unreachable  ->
+        raise @@ Utils.Not_yet_implemented("transform: Pexp_unreachable")
+    end
+  with
+  | Transformation_failure(locmsg) ->
+    let errloc = locmsg.loc in
+    let errmsg = locmsg.txt in
+    let%bind msg_group =
+      fragment_constant errloc [] @@ Pconst_string(errmsg,None)
     in
-    fragment_match loc attrs g fcases
-  | Parsetree.Pexp_try(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_try")
-  | Parsetree.Pexp_tuple(es) ->
-    let%bind gs = mapM recurse @@ List.enum es in
-    fragment_tuple loc attrs @@ List.of_enum gs
-  | Parsetree.Pexp_construct(name,eo) ->
-    let%bind go =
-      match eo with
-      | Some e -> lift1 Option.some @@ recurse e
-      | None -> return None
-    in
-    fragment_construct loc attrs name go
-  | Parsetree.Pexp_variant(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_variant")
-  | Parsetree.Pexp_record(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_record")
-  | Parsetree.Pexp_field(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_field")
-  | Parsetree.Pexp_setfield(_,_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_setfield")
-  | Parsetree.Pexp_array _ ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_array")
-  | Parsetree.Pexp_ifthenelse(e1,e2,e3o) ->
-    let e3 = Option.default_delayed (fun () -> [%expr ()]) e3o in
-    let%bind g1 = recurse e1 in
-    let%bind g2 = recurse e2 in
-    let%bind g3 = recurse e3 in
-    fragment_ifthenelse loc attrs g1 g2 g3
-  | Parsetree.Pexp_sequence(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_sequence")
-  | Parsetree.Pexp_while(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_while")
-  | Parsetree.Pexp_for(_,_,_,_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_for")
-  | Parsetree.Pexp_constraint(e,t) ->
-    let%bind g = recurse e in
-    fragment_constraint loc attrs g t
-  | Parsetree.Pexp_coerce(_,_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_coerce")
-  | Parsetree.Pexp_send(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_send")
-  | Parsetree.Pexp_new _ ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_new")
-  | Parsetree.Pexp_setinstvar(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_setinstvar")
-  | Parsetree.Pexp_override _ ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_override")
-  | Parsetree.Pexp_letmodule(_,_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_letmodule")
-  | Parsetree.Pexp_letexception(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_letexception")
-  | Parsetree.Pexp_assert _ ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_assert")
-  | Parsetree.Pexp_lazy _ ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_lazy")
-  | Parsetree.Pexp_poly(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_poly")
-  | Parsetree.Pexp_object _ ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_object")
-  | Parsetree.Pexp_newtype(_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_newtype")
-  | Parsetree.Pexp_pack _ ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_pack")
-  | Parsetree.Pexp_open(_,_,_) ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_open")
-  | Parsetree.Pexp_extension ext ->
-    extension_handler loc attrs ext
-  | Parsetree.Pexp_unreachable  ->
-    raise @@ Utils.Not_yet_implemented("transform: Pexp_unreachable")
+    fragment_extension errloc [] (Location.mkloc "ocaml.error" errloc)
+      (Some msg_group)
 
 and do_transform_case
     (extension_handler : extension_handler)

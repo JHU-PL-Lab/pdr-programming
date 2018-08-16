@@ -39,6 +39,10 @@ let rec tvars_of_type (t : core_type) : Tvar_set.t =
     (vars |> List.enum |> Enum.map (fun x -> x.txt) |> Tvar_set.of_enum)
   | Ptyp_package _ ->
     raise @@ Utils.Not_yet_implemented "tvars_of_type: Ptyp_package"
-  | Ptyp_extension _ ->
-    raise @@ Utils.Not_yet_implemented "tvars_of_type: Ptyp_extension"
+  | Ptyp_extension ext ->
+    if (fst ext).txt = "ocaml.error" then
+      (* It doesn't matter anyway.  :) *)
+      Tvar_set.empty
+    else
+      raise @@ Utils.Not_yet_implemented "tvars_of_type: Ptyp_extension"
 ;;
