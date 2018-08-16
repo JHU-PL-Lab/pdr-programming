@@ -389,6 +389,10 @@ and fragment_match
   (* This is really just a generalization of the control flow technique used in
      the fragment_ifthenelse function.  It's combined with the binding of
      variables from patterns, but that's largely orthogonal. *)
+  (* FIXME: there's some kind of funny business going on w.r.t. type
+     annotations on match pattern variables.  In some cases, such annotated
+     variables don't cross continuation boundaries correctly.  I'd look into
+     this now, but I don't have the time.  Good luck, future explorer. *)
   let%bind match_uid = fresh_uid () in
   (* Extract the pieces of each case *)
   let patterns = cs |> List.map (fun (p,_,_) -> p) in
