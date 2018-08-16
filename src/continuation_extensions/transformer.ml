@@ -129,12 +129,12 @@ let rec sequentialize_fragment_groups
     List.rev @@ List.map pure_fragment_group_to_expression pure_gs
   in
   (* Pick variable names for the other gs. *)
-  let%bind other_varnames_enum =
+  let%bind other_varnames =
     other_gs
     |> List.enum
     |> mapM (fun _ -> fresh_var ())
+    |> lift1 List.of_enum
   in
-  let other_varnames = List.of_enum other_varnames_enum in
   (* Build up appropriate expressions for the creator function. *)
   let exprs =
     other_varnames
@@ -507,6 +507,27 @@ and fragment_ifthenelse
   in
   return @@ embed_nonbind loc g1 ifthenelse_hole_group
 
+and fragment_sequence
+    (loc : Location.t) (attributes : attributes)
+    (g1 : fragment_group) (g2 : fragment_group)
+  : fragment_group m =
+  sequentialize_fragment_groups
+    loc
+    [g1;g2]
+    (fun exprs ->
+       match exprs with
+       | [e1;e2] ->
+         { pexp_desc = Pexp_sequence(e1,e2);
+           pexp_loc = loc;
+           pexp_attributes = attributes;
+         }
+       | _ ->
+         raise @@ Utils.Invariant_failure(
+           Printf.sprintf
+             "In fragment_sequence, sequentialize_fragment_groups returned %d expressions when two groups were provided."
+             (List.length exprs))
+    )
+
 (* TODO: more constructors here *)
 
 and fragment_constraint
@@ -592,11 +613,11 @@ and fragment_continuation
           )
       }
     in
-      { fg_graph = Fragment_uid_map.singleton uid fragment;
-        fg_loc = loc;
-        fg_entry = uid;
-        fg_exits = Fragment_uid_set.singleton uid
-      }
+    { fg_graph = Fragment_uid_map.singleton uid fragment;
+      fg_loc = loc;
+      fg_entry = uid;
+      fg_exits = Fragment_uid_set.singleton uid
+    }
   in
   (* If the extension has an expression payload, then we should give it a fresh
      variable name.  This way, the payload is exposed to the outside world and
@@ -640,12 +661,12 @@ and fragment_continuation
         loc
        )
       ]
-    | _ ->
-      raise @@ Utils.Not_yet_implemented(
-        Printf.sprintf
-          "continuation extension with multiple payloads at %s"
-          (Pp_utils.pp_to_string Location.print loc)
-      )
+  | _ ->
+    raise @@ Utils.Not_yet_implemented(
+      Printf.sprintf
+        "continuation extension with multiple payloads at %s"
+        (Pp_utils.pp_to_string Location.print loc)
+    )
 
 and fragment_nondeterminism
     (loc : Location.t)
@@ -718,8 +739,10 @@ and do_transform
         let%bind g2 = recurse e2 in
         let%bind g3 = recurse e3 in
         fragment_ifthenelse loc attrs g1 g2 g3
-      | Parsetree.Pexp_sequence(_,_) ->
-        raise @@ Utils.Not_yet_implemented("transform: Pexp_sequence")
+      | Parsetree.Pexp_sequence(e1,e2) ->
+        let%bind g1 = recurse e1 in
+        let%bind g2 = recurse e2 in
+        fragment_sequence loc attrs g1 g2
       | Parsetree.Pexp_while(_,_) ->
         raise @@ Utils.Not_yet_implemented("transform: Pexp_while")
       | Parsetree.Pexp_for(_,_,_,_,_) ->

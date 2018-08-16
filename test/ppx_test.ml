@@ -6,6 +6,7 @@ module%continuation Foo = struct
   [%%continuation_data_type: int];;
   [%%continuation_data_default 0];;
   let%continuation_fn foo (a : int) =
+    ();
     let%pick (z : t) = List.enum [A;B;C 1;C 2] in
     let%require C (y : int) = z in
     let _ = [%pop 4] in
