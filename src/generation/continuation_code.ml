@@ -299,7 +299,8 @@ let map_evaluation_holes_to_functions
 let map_extension_holes_to_expressions
     (ops : continuation_operations)
     (source_fragment_uid : Fragment_uid.t)
-    (cont_type : core_type)
+    (cont_type_opt : core_type option)
+    (cont_type_default : expression option)
     (exhds : extension_hole_data list)
   : expression list =
   exhds
@@ -315,30 +316,50 @@ let map_extension_holes_to_expressions
              source_fragment_uid
              target_fragment_uid
          in
-         let cont_data_expr =
+         let extension_expr_opt =
            match snd exhd.exhd_extension with
-           | PStr([]) ->
-             begin
-               match cont_type with
-               | [%type: unit] -> [%expr ()][@metaloc exhd.exhd_loc]
-               | _ ->
-                 error_as_expression exhd.exhd_loc @@
-                 Printf.sprintf
-                   "continuation extension expects data expression of type %s"
-                   (Pp_utils.pp_to_string Pprintast.core_type cont_type)
-             end
-           | PStr([{ pstr_desc = Pstr_eval(e, _); _ }]) ->
-             e
+           | PStr([]) -> None
+           | PStr([{ pstr_desc = Pstr_eval(e, _); _}]) -> Some e
            | _ ->
-             raise @@ Utils.Not_yet_implemented
-               "continuation extension with non-expression payload"
+             Some(
+               error_as_expression exhd.exhd_loc @@
+               "Unsupported non-expression payload in continuation extension"
+             )
+         in
+         let cont_data_expr_opt =
+           match cont_type_opt, extension_expr_opt with
+           | None, None -> None
+           | None, Some e ->
+             Some(
+               error_as_expression e.pexp_loc @@
+               "Invalid continuation extension expression: no continuation " ^
+               "data type given"
+             )
+           | Some t, None ->
+             begin
+               match cont_type_default with
+               | Some e ->
+                 Some([%expr ([%e e] : [%t t])][@metaloc exhd.exhd_loc])
+               | None ->
+                 Some(
+                   error_as_expression exhd.exhd_loc @@
+                   "Missing expression in continuation extension; either " ^
+                   "provide an expression or declare a default."
+                 )
+             end
+           | Some t, Some e ->
+             Some([%expr ([%e e] : [%t t])][@metaloc exhd.exhd_loc])
+         in
+         let cont_result_payload =
+           match cont_data_expr_opt with
+           | None -> cont_expr
+           | Some cont_data_expr ->
+             [%expr ([%e cont_expr], [%e cont_data_expr])]
+               [@metaloc exhd.exhd_loc]
          in
          [%expr
-           BatEnum.singleton
-             (Continuation_result(
-                 [%e cont_expr],([%e cont_data_expr] : [%t cont_type])
-               ))
-         ]
+           BatEnum.singleton (Continuation_result [%e cont_result_payload])
+         ][@metaloc exhd.exhd_loc]
     )
 ;;
 
@@ -347,7 +368,8 @@ let create_frag_fn_expr
     (fragment_group : fragment_group)
     (ops : continuation_operations)
     (uid : Fragment_uid.t)
-    (rest_cont_type : core_type)
+    (cont_type_opt : core_type option)
+    (cont_default_opt : expression option)
   : expression =
   let fragment = Fragment_uid_map.find uid fragment_group.fg_graph in
   let vars = ops.co_pattern_variables uid in
@@ -374,7 +396,8 @@ let create_frag_fn_expr
     in
     let ext_hole_exprs =
       fragment.fragment_extension_holes
-      |> map_extension_holes_to_expressions ops uid rest_cont_type
+      |> map_extension_holes_to_expressions
+        ops uid cont_type_opt cont_default_opt
     in
     fragment.fragment_code (Some [%expr _input]) eval_hole_fns ext_hole_exprs
     |> process_nondeterminism_extensions
@@ -389,7 +412,8 @@ let create_frag_fn_decls
     (loc : Location.t)
     (fragment_group : fragment_group)
     (ops : continuation_operations)
-    (rest_cont_type : core_type)
+    (cont_type_opt : core_type option)
+    (cont_default_opt : expression option)
   : structure_item =
   let frag_fn_bindings =
     fragment_group.fg_graph
@@ -399,7 +423,8 @@ let create_frag_fn_decls
     |> Enum.map
       (fun uid ->
          let expr =
-           create_frag_fn_expr loc fragment_group ops uid rest_cont_type
+           create_frag_fn_expr
+             loc fragment_group ops uid cont_type_opt cont_default_opt
          in
          let name = fragment_function_name uid in
          { pvb_pat = { ppat_desc = Ppat_var(mkloc name loc);
@@ -424,7 +449,8 @@ let create_start_fn_decl
     (ops : continuation_operations)
     (start_fn_name : string)
     (function_of_body : expression -> expression)
-    (cont_type : core_type)
+    (cont_type_opt : core_type option)
+    (cont_default_opt : expression option)
   : structure_item =
   let start_fragment_uid = fragment_group.fg_entry in
   let start_fragment =
@@ -437,7 +463,8 @@ let create_start_fn_decl
   in
   let extension_hole_expressions =
     start_fragment.fragment_extension_holes
-    |> map_extension_holes_to_expressions ops start_fragment_uid cont_type
+    |> map_extension_holes_to_expressions
+      ops start_fragment_uid cont_type_opt cont_default_opt
 
   in
   let start_fun_body =
@@ -753,10 +780,10 @@ let generate_code_from_function
     ?continuation_type_name:(continuation_type_name = "continuation")
     ?start_fn_name:(start_fn_name = "start")
     ?cont_fn_name:(cont_fn_name = "cont")
-    ?first_continuation_data_type:(first_continuation_data_type =
-                                   ([%type : unit] : core_type))
-    ?rest_continuation_data_type:(rest_continuation_data_type =
-                                  ([%type : unit] : core_type))
+    ?continuation_data_type:(continuation_data_type = (None : core_type option))
+    ?continuation_data_default:(continuation_data_default =
+                                (None : expression option)
+                               )
     (func_expr : expression)
   : structure =
   let func_expr' = rebind_parameters func_expr in
@@ -792,7 +819,8 @@ let generate_code_from_function
     ]
   in
   let frag_fn_decls =
-    create_frag_fn_decls loc fragment_group ops rest_continuation_data_type
+    create_frag_fn_decls
+      loc fragment_group ops continuation_data_type continuation_data_default
   in
   let cont_fn_decl =
     create_cont_fn_decl
@@ -805,7 +833,8 @@ let generate_code_from_function
       ops
       start_fn_name
       func_reconstruct
-      first_continuation_data_type
+      continuation_data_type
+      continuation_data_default
   in
   type_decls @
   result_type_decl @

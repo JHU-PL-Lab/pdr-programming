@@ -13,8 +13,8 @@ open Pdr_programming_utils.Utils;;
 type continuation_conversion_configuration =
   { ccc_start_function_name : string;
     ccc_continue_function_name : string;
-    ccc_first_continuation_data_type : core_type;
-    ccc_rest_continuation_data_type : core_type;
+    ccc_continuation_data_type : core_type option;
+    ccc_continuation_data_default : expression option;
   }
 ;;
 
@@ -27,54 +27,45 @@ type parse_result =
 
 let parse_continuation_configuration_extension (ext : extension)
   : parse_result =
-  let config_string ext string_fn =
+  let config_expr ?description:(description="an expression") ext expr_fn =
     match snd ext with
-    | PStr([
-        { pstr_desc =
-            Pstr_eval(
-              { pexp_desc = Pexp_constant(Pconst_string ((s : string), _));
-                _ },
-              _
-            );
-          _;
-        }
-      ]) ->
-      string_fn s
+    | PStr([ { pstr_desc = Pstr_eval(e, _); _; } ]) ->
+      expr_fn e
     | _ ->
-      Parse_error(Printf.sprintf "%s payload must be a string constant"
-                    (fst ext).txt)
+      Parse_error(Printf.sprintf "%s payload must be %s"
+                    (fst ext).txt description)
   in
   let config_type ext type_fn =
     match snd ext with
     | PTyp(core_type) -> type_fn core_type
     | _ -> Parse_error(Printf.sprintf "%s payload must be a type" (fst ext).txt)
   in
+  let config_string ext string_fn =
+    config_expr ~description:"a string constant" ext
+      (fun e ->
+         match e.pexp_desc with
+         | Pexp_constant(Pconst_string(s,_)) -> string_fn s
+         | _ ->
+           Parse_error(Printf.sprintf "%s payload must be a string constant"
+                         (fst ext).txt)
+      )
+  in
   match (fst ext).txt with
-  | "first_continuation_data_type" ->
-    config_type ext
-      (fun t ->
-         Configuration_change(
-           fun config -> { config with
-                           ccc_first_continuation_data_type = t;
-                         }
-         )
-      )
-  | "rest_continuation_data_type" ->
-    config_type ext
-      (fun t ->
-         Configuration_change(
-           fun config -> { config with
-                           ccc_rest_continuation_data_type = t;
-                         }
-         )
-      )
   | "continuation_data_type" ->
     config_type ext
       (fun t ->
          Configuration_change(
            fun config -> { config with
-                           ccc_first_continuation_data_type = t;
-                           ccc_rest_continuation_data_type = t;
+                           ccc_continuation_data_type = Some t;
+                         }
+         )
+      )
+  | "continuation_data_default" ->
+    config_expr ext
+      (fun e ->
+         Configuration_change(
+           fun config -> { config with
+                           ccc_continuation_data_default = Some e;
                          }
          )
       )
@@ -109,8 +100,8 @@ let convert_continuation_structure
     also be some extensions which represent configuration options.
   *)
   let default_configuration =
-    { ccc_first_continuation_data_type = [%type: unit][@metaloc module_loc];
-      ccc_rest_continuation_data_type = [%type: unit][@metaloc module_loc];
+    { ccc_continuation_data_type = None;
+      ccc_continuation_data_default = None;
       ccc_start_function_name = "start";
       ccc_continue_function_name = "cont";
     }
@@ -178,10 +169,10 @@ let convert_continuation_structure
                      Continuation_code.generate_code_from_function
                        ~start_fn_name:configuration.ccc_start_function_name
                        ~cont_fn_name:configuration.ccc_continue_function_name
-                       ~first_continuation_data_type:
-                         configuration.ccc_first_continuation_data_type
-                       ~rest_continuation_data_type:
-                         configuration.ccc_rest_continuation_data_type
+                       ~continuation_data_type:
+                         configuration.ccc_continuation_data_type
+                       ~continuation_data_default:
+                         configuration.ccc_continuation_data_default
                        binding.pvb_expr
                    in
                    (* This is silly, but we're assembling the list of structure
