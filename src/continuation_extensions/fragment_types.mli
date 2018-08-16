@@ -83,7 +83,11 @@ module Fragment_uid_set : sig
 end;;
 
 (** The type of a fragment UID dictionary. *)
-module Fragment_uid_map : Map.S with type key = Fragment_uid.t;;
+module Fragment_uid_map : sig
+  include Map.S with type key = Fragment_uid.t;;
+  val pp : 'a Pp_utils.pretty_printer -> 'a t Pp_utils.pretty_printer
+  val show : 'a Pp_utils.pretty_printer -> 'a t -> string
+end;;
 
 (** The metadata describing an input hole. *)
 type input_hole_data =

@@ -4,6 +4,19 @@ module%continuation Foo = struct
   [%%start_function_name "start"];;
   [%%continue_function_name "cont"];;
   [%%continuation_data_type: int];;
+  let%continuation_fn foo (a : int) =
+    let (x : int) = 4 in
+    let _ = [%pop 1] in
+    let (y : int) = x + 1 in
+    let _ = [%pop 2] in
+    (a,x,y)
+  ;;
+end
+;;
+(* module%continuation Foo = struct
+  [%%start_function_name "start"];;
+  [%%continuation_data_type: int];;
+  [%%continue_function_name "cont"];;
   [%%continuation_data_default 0];;
   let%continuation_fn foo (a : int) =
     ();
@@ -24,4 +37,4 @@ module%continuation Foo = struct
     ]
   ;;
 end
-;;
+;; *)

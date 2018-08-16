@@ -89,6 +89,9 @@ let create_continuation_operations
     in
     let expr_args_fn =
       fun loc source_fragment_uid target_fragment_uid ->
+        let source_fragment =
+          Fragment_uid_map.find source_fragment_uid fragment_group.fg_graph
+        in
         let target_fragment =
           Fragment_uid_map.find target_fragment_uid fragment_group.fg_graph
         in
@@ -150,7 +153,20 @@ let create_continuation_operations
           |> Enum.map
             (fun (varname, var_binder) ->
                let varname' =
-                 if Fragment_uid.equal var_binder source_fragment_uid then
+                 let source_is_binder =
+                   Fragment_uid.equal var_binder source_fragment_uid
+                 in
+                 let externally_bound_for_source =
+                   let external_binder =
+                     source_fragment.fragment_externally_bound_variables
+                     |> Var_map.Exceptionless.find varname
+                   in
+                   match external_binder with
+                   | None -> false
+                   | Some ebv ->
+                     Fragment_uid.equal var_binder ebv.ebv_binder
+                 in
+                 if source_is_binder || externally_bound_for_source then
                    varname
                  else
                    mangle_intermediate_name varname var_binder
