@@ -49,7 +49,7 @@ type extension_hole_data =
   { exhd_loc : Location.t;
     (** The location describing the extension that created the hole. *)
 
-    exhd_extension_name : string Asttypes.loc;
+    exhd_extension : extension;
     (** The name of the extension which caused the creation of this action
         hole. *)
 

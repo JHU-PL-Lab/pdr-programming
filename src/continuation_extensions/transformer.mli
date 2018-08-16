@@ -89,7 +89,7 @@ val fragment_extension :
 ;;
 
 val fragment_continuation :
-  Location.t -> attributes -> string Asttypes.loc -> fragment_group m
+  extension_handler -> Location.t -> attributes -> extension -> fragment_group m
 ;;
 
 val fragment_nondeterminism :

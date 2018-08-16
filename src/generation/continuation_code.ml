@@ -299,6 +299,7 @@ let map_evaluation_holes_to_functions
 let map_extension_holes_to_expressions
     (ops : continuation_operations)
     (source_fragment_uid : Fragment_uid.t)
+    (cont_type : core_type)
     (exhds : extension_hole_data list)
   : expression list =
   exhds
@@ -314,7 +315,30 @@ let map_extension_holes_to_expressions
              source_fragment_uid
              target_fragment_uid
          in
-         [%expr BatEnum.singleton (Continuation_result([%e cont_expr]))]
+         let cont_data_expr =
+           match snd exhd.exhd_extension with
+           | PStr([]) ->
+             begin
+               match cont_type with
+               | [%type: unit] -> [%expr ()][@metaloc exhd.exhd_loc]
+               | _ ->
+                 error_as_expression exhd.exhd_loc @@
+                 Printf.sprintf
+                   "continuation extension expects data expression of type %s"
+                   (Pp_utils.pp_to_string Pprintast.core_type cont_type)
+             end
+           | PStr([{ pstr_desc = Pstr_eval(e, _); _ }]) ->
+             e
+           | _ ->
+             raise @@ Utils.Not_yet_implemented
+               "continuation extension with non-expression payload"
+         in
+         [%expr
+           BatEnum.singleton
+             (Continuation_result(
+                 [%e cont_expr],([%e cont_data_expr] : [%t cont_type])
+               ))
+         ]
     )
 ;;
 
@@ -323,6 +347,7 @@ let create_frag_fn_expr
     (fragment_group : fragment_group)
     (ops : continuation_operations)
     (uid : Fragment_uid.t)
+    (rest_cont_type : core_type)
   : expression =
   let fragment = Fragment_uid_map.find uid fragment_group.fg_graph in
   let vars = ops.co_pattern_variables uid in
@@ -349,7 +374,7 @@ let create_frag_fn_expr
     in
     let ext_hole_exprs =
       fragment.fragment_extension_holes
-      |> map_extension_holes_to_expressions ops uid
+      |> map_extension_holes_to_expressions ops uid rest_cont_type
     in
     fragment.fragment_code (Some [%expr _input]) eval_hole_fns ext_hole_exprs
     |> process_nondeterminism_extensions
@@ -364,6 +389,7 @@ let create_frag_fn_decls
     (loc : Location.t)
     (fragment_group : fragment_group)
     (ops : continuation_operations)
+    (rest_cont_type : core_type)
   : structure_item =
   let frag_fn_bindings =
     fragment_group.fg_graph
@@ -373,7 +399,7 @@ let create_frag_fn_decls
     |> Enum.map
       (fun uid ->
          let expr =
-           create_frag_fn_expr loc fragment_group ops uid
+           create_frag_fn_expr loc fragment_group ops uid rest_cont_type
          in
          let name = fragment_function_name uid in
          { pvb_pat = { ppat_desc = Ppat_var(mkloc name loc);
@@ -398,6 +424,7 @@ let create_start_fn_decl
     (ops : continuation_operations)
     (start_fn_name : string)
     (function_of_body : expression -> expression)
+    (cont_type : core_type)
   : structure_item =
   let start_fragment_uid = fragment_group.fg_entry in
   let start_fragment =
@@ -410,7 +437,7 @@ let create_start_fn_decl
   in
   let extension_hole_expressions =
     start_fragment.fragment_extension_holes
-    |> map_extension_holes_to_expressions ops start_fragment_uid
+    |> map_extension_holes_to_expressions ops start_fragment_uid cont_type
 
   in
   let start_fun_body =
@@ -534,7 +561,9 @@ let create_cont_fn_decl
             pvb_expr =
               [%expr
                 ([%e cont_fn] :
-                   [%t cont_type] -> 'input -> 'a continuation_result BatEnum.t)
+                   [%t cont_type] ->
+                 'input ->
+                 ('unknown1,'unknown2) continuation_result BatEnum.t)
               ];
             pvb_attributes = [];
             pvb_loc = loc;
@@ -611,16 +640,6 @@ let rec unroll_function (e : expression)
    Performs the continuation code transformation on the provided expression.
 *)
 let transform_expression (expr : expression) : fragment_group =
-  let require_empty_payload ext =
-    match snd ext with
-    | PStr([]) -> ()
-    | _ ->
-      raise @@ Transformer.Transformation_failure(
-        mkloc
-          (Printf.sprintf "Extension %s requires empty payload" (fst ext).txt)
-          (fst ext).loc
-      )
-  in
   let require_single_expression_payload ext =
     match snd ext with
     | PStr([{ pstr_desc = Pstr_eval(e, _); pstr_loc = _ }]) -> e
@@ -652,8 +671,7 @@ let transform_expression (expr : expression) : fragment_group =
     let open Transformer_monad in
     match (fst ext).txt with
     | "pop" ->
-      require_empty_payload ext;
-      Transformer.fragment_continuation loc attrs (fst ext)
+      Transformer.fragment_continuation extension_handler loc attrs ext
     | "pick"
     | "require" ->
       (* Special handling is required for these extensions.  We need to add the
@@ -735,6 +753,10 @@ let generate_code_from_function
     ?continuation_type_name:(continuation_type_name = "continuation")
     ?start_fn_name:(start_fn_name = "start")
     ?cont_fn_name:(cont_fn_name = "cont")
+    ?first_continuation_data_type:(first_continuation_data_type =
+                                   ([%type : unit] : core_type))
+    ?rest_continuation_data_type:(rest_continuation_data_type =
+                                  ([%type : unit] : core_type))
     (func_expr : expression)
   : structure =
   let func_expr' = rebind_parameters func_expr in
@@ -764,19 +786,26 @@ let generate_code_from_function
       }
     in
     [%str
-      type 'a continuation_result =
-        | Value_result of 'a
-        | Continuation_result of [%t typ]
+      type ('value,'cont_data) continuation_result =
+        | Value_result of 'value
+        | Continuation_result of [%t typ] * 'cont_data
     ]
   in
-  let frag_fn_decls = create_frag_fn_decls loc fragment_group ops in
+  let frag_fn_decls =
+    create_frag_fn_decls loc fragment_group ops rest_continuation_data_type
+  in
   let cont_fn_decl =
     create_cont_fn_decl
       loc fragment_group continuation_type_name cont_fn_name ops
   in
   let start_fn_decl =
     create_start_fn_decl
-      loc fragment_group ops start_fn_name func_reconstruct
+      loc
+      fragment_group
+      ops
+      start_fn_name
+      func_reconstruct
+      first_continuation_data_type
   in
   type_decls @
   result_type_decl @

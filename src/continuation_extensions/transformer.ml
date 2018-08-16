@@ -559,43 +559,93 @@ and fragment_extension
 (* TODO: more constructors here *)
 
 and fragment_continuation
+    (extension_handler : extension_handler)
     (loc : Location.t)
     (attributes : attributes)
-    (extension_name : string loc)
+    (extension : extension)
   : fragment_group m =
   Pervasives.ignore attributes;
   let%bind uid = fresh_uid () in
-  let fragment =
-    { fragment_uid = uid;
-      fragment_loc = loc;
-      fragment_free_variables = Var_set.empty;
-      fragment_externally_bound_variables = Var_map.empty;
-      fragment_input_hole = None;
-      fragment_evaluation_holes = [];
-      fragment_extension_holes =
-        [ { exhd_loc = loc;
-            exhd_extension_name = extension_name;
-            exhd_bound_variables = Var_map.empty;
-            exhd_target_fragment = None;
-          }
-        ];
-      fragment_code =
-        (fun input_expr_opt eval_holes_fns ext_holes_exprs ->
-           assert_no_input_expr uid input_expr_opt;
-           assert_evaluation_hole_function_count uid 0 eval_holes_fns;
-           let e =
-             assert_singleton_extension_hole_expression uid ext_holes_exprs
-           in
-           e
-        )
-    }
+  let make_extension_group ext =
+    let fragment =
+      { fragment_uid = uid;
+        fragment_loc = loc;
+        fragment_free_variables = Var_set.empty;
+        fragment_externally_bound_variables = Var_map.empty;
+        fragment_input_hole = None;
+        fragment_evaluation_holes = [];
+        fragment_extension_holes =
+          [ { exhd_loc = loc;
+              exhd_extension = ext;
+              exhd_bound_variables = Var_map.empty;
+              exhd_target_fragment = None;
+            }
+          ];
+        fragment_code =
+          (fun input_expr_opt eval_holes_fns ext_holes_exprs ->
+             assert_no_input_expr uid input_expr_opt;
+             assert_evaluation_hole_function_count uid 0 eval_holes_fns;
+             let e =
+               assert_singleton_extension_hole_expression uid ext_holes_exprs
+             in
+             e
+          )
+      }
+    in
+      { fg_graph = Fragment_uid_map.singleton uid fragment;
+        fg_loc = loc;
+        fg_entry = uid;
+        fg_exits = Fragment_uid_set.singleton uid
+      }
   in
-  return
-    { fg_graph = Fragment_uid_map.singleton uid fragment;
-      fg_loc = loc;
-      fg_entry = uid;
-      fg_exits = Fragment_uid_set.singleton uid
-    }
+  (* If the extension has an expression payload, then we should give it a fresh
+     variable name.  This way, the payload is exposed to the outside world and
+     is visible as a free variable. *)
+  match snd extension with
+  | PStr([]) ->
+    (* This extension has no payload.  Leave it alone. *)
+    return @@ make_extension_group extension
+  | PStr([{ pstr_desc = Pstr_eval(e,attrs); pstr_loc = str_loc}]) ->
+    (* This extension has a payload.  Create a fresh variable, use that as the
+       payload, and then let-bind the result so that the variables in the
+       payload are bound properly.
+    *)
+    let%bind x = fresh_var () in
+    let extension' =
+      (fst extension,
+       PStr([
+           { pstr_desc =
+               Pstr_eval(
+                 { pexp_desc =
+                     Pexp_ident(Location.mkloc (Longident.Lident x) loc);
+                   pexp_loc = loc;
+                   pexp_attributes = [];
+                 },
+                 []);
+             pstr_loc = str_loc;
+           }
+         ])
+      )
+    in
+    let base_group = make_extension_group extension' in
+    let%bind payload_group = do_transform extension_handler e in
+    base_group
+    |> fragment_let loc attrs Nonrecursive
+      [({ ppat_desc = Ppat_var(Location.mkloc x loc);
+          ppat_loc = loc;
+          ppat_attributes = [];
+        },
+        payload_group,
+        [],
+        loc
+       )
+      ]
+    | _ ->
+      raise @@ Utils.Not_yet_implemented(
+        Printf.sprintf
+          "continuation extension with multiple payloads at %s"
+          (Pp_utils.pp_to_string Location.print loc)
+      )
 
 and fragment_nondeterminism
     (loc : Location.t)
