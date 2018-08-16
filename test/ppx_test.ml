@@ -3,6 +3,7 @@ type t = A | B | C of int;;
 module%continuation Foo = struct
   [%%start_function_name "start"];;
   [%%continue_function_name "cont"];;
+  [%%continuation_type_name "continuation"];;
   [%%continuation_data_type: int];;
   let%continuation_fn foo (a : int) =
     let (x : int) = (fun x -> x) 4 in

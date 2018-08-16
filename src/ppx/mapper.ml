@@ -13,6 +13,7 @@ open Pdr_programming_utils.Utils;;
 type continuation_conversion_configuration =
   { ccc_start_function_name : string;
     ccc_continue_function_name : string;
+    ccc_continuation_type_name : string;
     ccc_continuation_data_type : core_type option;
     ccc_continuation_data_default : expression option;
   }
@@ -51,24 +52,6 @@ let parse_continuation_configuration_extension (ext : extension)
       )
   in
   match (fst ext).txt with
-  | "continuation_data_type" ->
-    config_type ext
-      (fun t ->
-         Configuration_change(
-           fun config -> { config with
-                           ccc_continuation_data_type = Some t;
-                         }
-         )
-      )
-  | "continuation_data_default" ->
-    config_expr ext
-      (fun e ->
-         Configuration_change(
-           fun config -> { config with
-                           ccc_continuation_data_default = Some e;
-                         }
-         )
-      )
   | "start_function_name" ->
     config_string ext
       (fun s ->
@@ -87,6 +70,33 @@ let parse_continuation_configuration_extension (ext : extension)
                          }
          )
       )
+  | "continuation_type_name" ->
+    config_string ext
+      (fun s ->
+         Configuration_change(
+           fun config -> { config with
+                           ccc_continuation_type_name = s;
+                         }
+         )
+      )
+  | "continuation_data_type" ->
+    config_type ext
+      (fun t ->
+         Configuration_change(
+           fun config -> { config with
+                           ccc_continuation_data_type = Some t;
+                         }
+         )
+      )
+  | "continuation_data_default" ->
+    config_expr ext
+      (fun e ->
+         Configuration_change(
+           fun config -> { config with
+                           ccc_continuation_data_default = Some e;
+                         }
+         )
+      )
   | _ ->
     Inert_extension
 ;;
@@ -100,10 +110,11 @@ let convert_continuation_structure
     also be some extensions which represent configuration options.
   *)
   let default_configuration =
-    { ccc_continuation_data_type = None;
-      ccc_continuation_data_default = None;
-      ccc_start_function_name = "start";
+    { ccc_start_function_name = "start";
       ccc_continue_function_name = "cont";
+      ccc_continuation_type_name = "continuation";
+      ccc_continuation_data_type = None;
+      ccc_continuation_data_default = None;
     }
   in
   (* Scan for options. *)
@@ -169,6 +180,8 @@ let convert_continuation_structure
                      Continuation_code.generate_code_from_function
                        ~start_fn_name:configuration.ccc_start_function_name
                        ~cont_fn_name:configuration.ccc_continue_function_name
+                       ~continuation_type_name:
+                         configuration.ccc_continuation_type_name
                        ~continuation_data_type:
                          configuration.ccc_continuation_data_type
                        ~continuation_data_default:
