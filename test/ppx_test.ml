@@ -5,7 +5,7 @@ module%continuation Foo = struct
   [%%continue_function_name "cont"];;
   [%%continuation_data_type: int];;
   let%continuation_fn foo (a : int) =
-    let (x : int) = 4 in
+    let (x : int) = (fun x -> x) 4 in
     let _ = [%pop 1] in
     let (y : int) = x + 1 in
     let _ = [%pop 2] in

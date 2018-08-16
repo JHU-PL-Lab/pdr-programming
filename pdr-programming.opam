@@ -7,12 +7,12 @@ license: "Apache"
 homepage: "https://github.com/JHU-PL-Lab/pdr-programming"
 dev-repo: "https://github.com/JHU-PL-Lab/pdr-programming.git"
 bug-reports: "https://github.com/JHU-PL-Lab/pdr-programming/issues"
-build: [ "jbuilder" "build" "-p" name "-j" jobs ]
-build-test: [ "jbuilder" "runtest" "-p" name "-j" jobs ]
+build: [ "dune" "build" "-p" name "-j" jobs ]
+build-test: [ "dune" "runtest" "-p" name "-j" jobs ]
 depends: [
   "base-threads"
   "batteries"
-  "jbuilder" {build & >= "1.0+beta17"}
+  "dune" {build & >= "1.0"}
   "jhupllib" {>= "0.1.1"}
   "ocaml-monadic"
   "ocamlbuild" {build}

@@ -343,6 +343,26 @@ and fragment_let
 
 (* TODO: more constructors here *)
 
+and fragment_fun
+    (loc : Location.t) (attributes : attributes)
+    (label : arg_label)
+    (default : expression option)
+    (pattern : pattern)
+    (body : fragment_group)
+  : fragment_group m =
+  if not @@ is_pure body then
+    raise @@ Unfragmentable_ast
+      "fragment_fun: impure function";
+  return @@
+    fragment_group_code_transform
+    (fun e ->
+       { pexp_desc = Pexp_fun(label, default, pattern, e);
+         pexp_loc = loc;
+         pexp_attributes = attributes;
+       }
+    )
+    body
+
 and fragment_apply
     (loc : Location.t) (attributes : attributes)
     (g_fn : fragment_group) (args : (Asttypes.arg_label * fragment_group) list)
@@ -536,7 +556,7 @@ and fragment_ifthenelse
 and fragment_sequence
     (loc : Location.t) (attributes : attributes)
     (g1 : fragment_group) (g2 : fragment_group)
-   : fragment_group m =
+  : fragment_group m =
   fragment_let
     loc
     attributes
@@ -712,8 +732,9 @@ and do_transform
         fragment_let loc attrs rec_flag bindings' body'
       | Parsetree.Pexp_function _ ->
         raise @@ Utils.Not_yet_implemented("transform: Pexp_function")
-      | Parsetree.Pexp_fun(_,_,_,_) ->
-        raise @@ Utils.Not_yet_implemented("transform: Pexp_fun")
+      | Parsetree.Pexp_fun(label,default,pattern,body) ->
+        let%bind body_fragment = recurse body in
+        fragment_fun loc attrs label default pattern body_fragment
       | Parsetree.Pexp_apply(fn,args) ->
         let%bind g_fn = recurse fn in
         let labels,e_args = List.split args in

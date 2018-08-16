@@ -1,3 +1,4 @@
+open Asttypes;;
 open Parsetree;;
 
 open Fragment_types;;
@@ -29,7 +30,7 @@ type extension_handler =
 
 (** An exception to be raised when transformation fails.  Used to generate
     appropriate error nodes for the compiler. *)
-exception Transformation_failure of string Asttypes.loc;;
+exception Transformation_failure of string loc;;
 
 val sequentialize_fragment_groups :
   Location.t -> fragment_group list -> (expression list -> expression) ->
@@ -37,7 +38,7 @@ val sequentialize_fragment_groups :
 ;;
 
 val fragment_ident :
-  Location.t -> attributes -> Longident.t Asttypes.loc -> fragment_group m
+  Location.t -> attributes -> Longident.t loc -> fragment_group m
 ;;
 
 val fragment_constant :
@@ -45,15 +46,21 @@ val fragment_constant :
 ;;
 
 val fragment_let :
-  Location.t -> attributes -> Asttypes.rec_flag ->
+  Location.t -> attributes -> rec_flag ->
   (pattern * fragment_group * attributes * Location.t) list ->
+  fragment_group ->
+  fragment_group m
+;;
+
+val fragment_fun :
+  Location.t -> attributes -> arg_label -> expression option -> pattern ->
   fragment_group ->
   fragment_group m
 ;;
 
 val fragment_apply :
   Location.t -> attributes -> fragment_group ->
-  (Asttypes.arg_label * fragment_group) list ->
+  (arg_label * fragment_group) list ->
   fragment_group m
 ;;
 
@@ -68,7 +75,7 @@ val fragment_tuple :
 ;;
 
 val fragment_construct :
-  Location.t -> attributes -> Longident.t Asttypes.loc ->
+  Location.t -> attributes -> Longident.t loc ->
   fragment_group option ->
   fragment_group m
 ;;
@@ -79,12 +86,17 @@ val fragment_ifthenelse :
   fragment_group m
 ;;
 
+val fragment_sequence :
+  Location.t -> attributes -> fragment_group -> fragment_group ->
+  fragment_group m
+;;
+
 val fragment_constraint :
   Location.t -> attributes -> fragment_group -> core_type -> fragment_group m
 ;;
 
 val fragment_extension :
-  Location.t -> attributes -> string Asttypes.loc -> fragment_group option ->
+  Location.t -> attributes -> string loc -> fragment_group option ->
   fragment_group m
 ;;
 
