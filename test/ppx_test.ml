@@ -5,12 +5,12 @@ module%continuation Foo = struct
   [%%continue_function_name "cont"];;
   [%%continuation_type_name "continuation"];;
   [%%continuation_type_attributes][@@deriving eq, ord, show, to_yojson];;
-  [%%continuation_data_type: int];;
+  (* [%%continuation_data_type: int];; *)
   let%continuation_fn foo (a : int) =
     let (x : int) = (fun x -> x) 4 in
-    let _ = [%pop 1] in
+    let _ = [%pop] in
     let (y : int) = x + 1 in
-    let _ = [%pop 2] in
+    let _ = [%pop] in
     (a,x,y)
   ;;
 end

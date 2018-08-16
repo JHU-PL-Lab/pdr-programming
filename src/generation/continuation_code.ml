@@ -520,6 +520,7 @@ let create_cont_fn_decl
     (fragment_group : fragment_group)
     (continuation_type_name : string)
     (cont_fn_name : string)
+    (cont_data_type : core_type option)
     (ops : continuation_operations)
   : structure_item =
   let extension_hole_targets =
@@ -601,6 +602,11 @@ let create_cont_fn_decl
       ptyp_attributes = [];
     }
   in
+  let continuation_result_type =
+    match cont_data_type with
+    | None -> [%type: 'unknown continuation_result]
+    | Some t -> [%type: ('unknown,[%t t]) continuation_result]
+  in
   { pstr_desc =
       Pstr_value(
         Nonrecursive,
@@ -614,8 +620,8 @@ let create_cont_fn_decl
                 ([%e cont_fn] :
                    [%t cont_type] ->
                  'input ->
-                 ('unknown1,'unknown2) continuation_result BatEnum.t)
-              ];
+                 [%t continuation_result_type] BatEnum.t)
+              ][@metaloc loc];
             pvb_attributes = [];
             pvb_loc = loc;
           } ]);
@@ -849,18 +855,26 @@ let generate_code_from_function
       )
   in
   let result_type_decl =
-    let typ =
+    let cr_typ =
       { ptyp_desc =
           Ptyp_constr(mkloc (Longident.Lident continuation_type_name) loc, []);
         ptyp_loc = loc;
         ptyp_attributes = [];
       }
     in
-    [%str
-      type ('value,'cont_data) continuation_result =
-        | Value_result of 'value
-        | Continuation_result of [%t typ] * 'cont_data
-    ]
+    match continuation_data_type with
+    | None ->
+      [%str
+        type 'value continuation_result =
+          | Value_result of 'value
+          | Continuation_result of [%t cr_typ]
+      ]
+    | Some cd_typ ->
+      [%str
+        type 'value continuation_result =
+          | Value_result of 'value
+          | Continuation_result of [%t cr_typ] * [%t cd_typ]
+      ]
   in
   let frag_fn_decls =
     create_frag_fn_decls
@@ -868,7 +882,12 @@ let generate_code_from_function
   in
   let cont_fn_decl =
     create_cont_fn_decl
-      loc fragment_group continuation_type_name cont_fn_name ops
+      loc
+      fragment_group
+      continuation_type_name
+      cont_fn_name
+      continuation_data_type
+      ops
   in
   let start_fn_decl =
     create_start_fn_decl
