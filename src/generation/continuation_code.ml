@@ -776,6 +776,18 @@ let transform_expression (expr : expression) : fragment_group =
     (new_fresh_variable_context ())
 ;;
 
+(* TODO:
+   Provide support to statically distinguish between types of data for the first
+   continuation which is reached (the type of the start function) and the
+   remaining continuations (the type of the cont function).  A previous
+   iteration of this existed before, but was replaced due to time constraints
+   with the current less statically-checked support.  Implementing this properly
+   would require knowing for a given fragment function which of the two types to
+   use; the naive implementation wound up using the cont function type for
+   fragments which were invoked by the start function due to a pick_lazy
+   annotation.
+*)
+
 let generate_code_from_function
     ?continuation_type_name:(continuation_type_name = "continuation")
     ?start_fn_name:(start_fn_name = "start")
