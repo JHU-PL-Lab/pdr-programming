@@ -520,7 +520,6 @@ let create_cont_fn_decl
     (fragment_group : fragment_group)
     (continuation_type_name : string)
     (cont_fn_name : string)
-    (cont_data_type : core_type option)
     (ops : continuation_operations)
   : structure_item =
   let extension_hole_targets =
@@ -602,11 +601,6 @@ let create_cont_fn_decl
       ptyp_attributes = [];
     }
   in
-  let continuation_result_type =
-    match cont_data_type with
-    | None -> [%type: 'unknown continuation_result]
-    | Some t -> [%type: ('unknown,[%t t]) continuation_result]
-  in
   { pstr_desc =
       Pstr_value(
         Nonrecursive,
@@ -620,7 +614,7 @@ let create_cont_fn_decl
                 ([%e cont_fn] :
                    [%t cont_type] ->
                  'input ->
-                 [%t continuation_result_type] BatEnum.t)
+                 'unknown continuation_result BatEnum.t)
               ][@metaloc loc];
             pvb_attributes = [];
             pvb_loc = loc;
@@ -886,7 +880,6 @@ let generate_code_from_function
       fragment_group
       continuation_type_name
       cont_fn_name
-      continuation_data_type
       ops
   in
   let start_fn_decl =
