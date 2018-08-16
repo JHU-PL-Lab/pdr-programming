@@ -17,6 +17,9 @@ module%continuation Foo = struct
       begin
         (y,a)
       end;
+      begin
+        let%antirequire 0 = 0 in (0,0)
+      end;
     ]
   ;;
 end

@@ -66,6 +66,14 @@ let process_nondeterminism_extensions (expression : expression) =
             | [%p val_pat] -> [%e body']
             | _ -> BatEnum.empty ()
           ] [@metaloc e.pexp_loc]
+        | [%expr let%antirequire [%p? val_pat] = [%e? val_expr] in [%e? body]]->
+          let val_expr' = mapper.expr mapper val_expr in
+          let body' = mapper.expr mapper body in
+          [%expr
+            match [%e val_expr'] with
+            | [%p val_pat] -> BatEnum.empty ()
+            | _ -> [%e body']
+          ] [@metaloc e.pexp_loc]
         | _ ->
           Ast_mapper.default_mapper.expr mapper e
     }
@@ -700,7 +708,8 @@ let transform_expression (expr : expression) : fragment_group =
     | "pop" ->
       Transformer.fragment_continuation extension_handler loc attrs ext
     | "pick"
-    | "require" ->
+    | "require"
+    | "antirequire" ->
       (* Special handling is required for these extensions.  We need to add the
          extension to the fragment that the "let" binding winds up in, which may
          not be the entry fragment if the bindings are impure.  In both cases,
