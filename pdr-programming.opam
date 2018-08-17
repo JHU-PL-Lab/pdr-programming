@@ -14,11 +14,13 @@ depends: [
   "batteries"
   "dune" {build & >= "1.0"}
   "jhupllib" {>= "0.1.1"}
+  "ocaml-migrate-parsetree"
   "ocaml-monadic"
   "ocamlbuild" {build}
   "ocamlfind" {build}
   "ounit" {build}
   "ppx_deriving" {>= "3.2"}
   "ppx_deriving_yojson" {>= "2.1"}
+  "ppx_metaquot"
   "yojson"
 ]
